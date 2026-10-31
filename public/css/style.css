@@ -566,3 +566,27 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
 @media (prefers-reduced-motion: reduce) {
   .beam, .floor, .cash-rain i, .crate, .hero .av { animation: none !important; }
 }
+
+/* ---------- music settings ---------- */
+.music-box { padding: 12px 14px; border-radius: 14px; background: var(--glass); }
+.music-box .lbl { margin-top: 0; }
+.track-list { display: flex; flex-direction: column; gap: 6px; }
+.track { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 12px; border-radius: 12px; background: rgba(0, 0, 0, .3); border: 2px solid transparent; }
+.track .ti { font-size: 20px; width: 26px; text-align: center; }
+.track b { display: block; font-size: 14px; }
+.track small { color: var(--muted); font-size: 11px; font-weight: 600; }
+.track.sel { border-color: var(--gold); background: #ffc94a1c; }
+.track.sel b { color: var(--gold); }
+.vol-row { display: flex; align-items: center; gap: 10px; margin: 12px 0 2px; font-weight: 800; }
+.vol-row input { flex: 1; accent-color: var(--gold); padding: 0; border: 0; background: none; }
+.vol-row span:last-child { width: 38px; text-align: right; color: var(--muted); font-size: 13px; }
+.my-songs { display: none; margin-top: 10px; }
+.my-songs.on { display: block; }
+.ms-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.ms-row { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-radius: 10px; background: rgba(0, 0, 0, .3); border: 2px solid transparent; cursor: pointer; }
+.ms-row.sel { border-color: var(--cyan); }
+.ms-row span { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-row .x { width: 30px; height: 30px; border-radius: 8px; background: #ff3d6e22; color: var(--red); font-weight: 800; flex: none; }
+.ms-add { display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.ms-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 6px; }
+.ms-shuffle { margin-bottom: 8px; background: rgba(0, 0, 0, .3); }

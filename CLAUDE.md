@@ -107,6 +107,17 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
 - [x] Slow-motion final reveal: Final Heist resolution lasts ~1.8x (room.js), a drumroll before each result, dark vignette.
 - Verified: locker, comics, danger crates, final slow-mo, results dance + unlock toast; 11 tests pass; zero console errors.
 
+**Session 5 (2026-10-31): music picker.**
+- [x] Settings → Music: 🎭 Bella Ciao heist remix (**default**), 🎬 Hall of the Mountain King (speeds up each loop), 🎹 Classic Vault Rush (the old music),
+      🎧 My songs, 🔇 Off, plus a volume slider (default 40%, quieter than before). Sound effects unchanged and on their own toggle.
+- Only public-domain melodies are synthesized in code (`Music` in js/audio.js); **no music files ship with the game**.
+- **My songs**: the player adds audio files from their own phone; stored in IndexedDB (`vr_music`), played via `<audio>`, shuffle all or pick one.
+  Never uploaded. The owner wanted On & On, Sia (Cheap Thrills/Snowman/The Greatest) and Dance Monkey: those are copyrighted, so
+  **never commit them to the repo**; each player adds their own copies through My songs.
+- Settings keys: `musicTrack` (bella|mountain|classic|mine|off), `musicVol` (0-100), `mySong` ('all' or the song id to play first), `shuffle` (default true; My songs order: shuffled or order added).
+- **On & On (Cartoon ft. Daniel Levi, NCS) is NOT free for games.** ncs.io/usage-policy: free only for creators' videos; games need NCS's
+  commercial licensing form. The owner may apply; only bundle it as the default if they confirm NCS gave permission.
+
 ## Ideas / next steps (not done)
 - Owner declined for now: festival/Diwali theme, landscape/tablet layout.
 - Real-device testing (low-end Android, iPhone Safari) — not possible from this PC.
@@ -116,6 +127,8 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
 
 ## Session log
 - **2026-10-31 (S1)**: Built the whole MVP from idea.md. Owner will push to GitHub from another PC/account and deploy on Render; I must not push.
+- **2026-10-31 (S5b)**: Shuffle toggle (on by default) for My songs. Checked NCS policy: On & On needs a licence for games, not bundled.
+- **2026-10-31 (S5)**: Music picker + "My songs" (local files) + volume. Copyrighted songs are not bundled (public repo/site).
 - **2026-10-31 (S4)**: Owner chose UI ideas 2-6 (reactions, danger meter, unlockables, comic pop-ups, slow-mo final). All done.
 - **2026-10-31 (S3)**: Owner sent a UI sketch (sides + centre boxes + growing storage crates, no cards). Rebuilt the arena to match; added bank safe per player.
 - **2026-10-31 (S2)**: Owner asked for "all the updates" from my improvement list (gameplay + visual). Implemented everything listed in Status → Session 2.

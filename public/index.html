@@ -206,7 +206,17 @@
     <div class="sheet">
       <div class="sheet-head"><h3>⚙️ Settings</h3><button class="icon-btn small" data-close>✕</button></div>
       <label class="toggle"><span>🔊 Sound effects</span><input type="checkbox" data-setting="sfx" /><i></i></label>
-      <label class="toggle"><span>🎵 Music</span><input type="checkbox" data-setting="music" /><i></i></label>
+      <div class="music-box">
+        <div class="lbl">🎵 MUSIC</div>
+        <div class="track-list" id="track-list"></div>
+        <label class="vol-row"><span>🔈</span><input type="range" id="music-vol" min="0" max="100" step="5" /><span id="music-vol-val"></span></label>
+        <div class="my-songs" id="my-songs">
+          <label class="toggle ms-shuffle"><span>🔀 Shuffle</span><input type="checkbox" id="ms-shuffle" /><i></i></label>
+          <div class="ms-list" id="ms-list"></div>
+          <label class="btn btn-cyan btn-small ms-add">＋ ADD SONGS FROM THIS PHONE<input type="file" id="ms-file" accept="audio/*" multiple hidden /></label>
+          <p class="hint">Your songs stay on this phone only and are never uploaded. Each friend adds their own.</p>
+        </div>
+      </div>
       <label class="toggle"><span>📳 Vibration</span><input type="checkbox" data-setting="vibrate" /><i></i></label>
       <label class="toggle"><span>⚡ Fast animations</span><input type="checkbox" data-setting="fastAnim" /><i></i></label>
       <button class="btn btn-ghost" id="btn-reset-tut">🎓 Show tutorial again</button>

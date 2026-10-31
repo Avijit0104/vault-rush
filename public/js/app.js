@@ -116,6 +116,7 @@
       $('#btn-game-leave').style.display = S.conn && S.screen !== 'home' ? '' : 'none';
     }
     if (name === 'log') renderLog();
+    if (name === 'settings') renderMusic();
     $('#sheet-' + name).classList.add('show');
     SFX.tap();
   }
@@ -134,6 +135,76 @@
     }));
     $('#btn-reset-tut').onclick = () => { localStorage.removeItem('vr_tut'); toast('Tutorial will show in your next solo game'); };
     $('#btn-game-leave').onclick = () => { closeSheets(); confirmBox('Leave this heist?', () => leave()); };
+  }
+
+  /* ---------- music picker (settings) ---------- */
+  const TRACKS = [
+    { id: 'bella', icon: '🎭', name: 'Bella Ciao', sub: 'Heist remix · default' },
+    { id: 'mountain', icon: '🎬', name: 'Hall of the Mountain King', sub: 'Grieg · speeds up every loop' },
+    { id: 'classic', icon: '🎹', name: 'Classic Vault Rush', sub: 'The original game music' },
+    { id: 'mine', icon: '🎧', name: 'My songs', sub: 'Songs you add from this phone' },
+    { id: 'off', icon: '🔇', name: 'Music off', sub: 'Sound effects still play' },
+  ];
+  async function renderMusic() {
+    const cur = SETTINGS.get('musicTrack') || 'bella';
+    $('#track-list').innerHTML = TRACKS.map((t) => `<button class="track ${t.id === cur ? 'sel' : ''}" data-track="${t.id}">
+        <span class="ti">${t.icon}</span><span><b>${t.name}</b><small>${t.sub}</small></span></button>`).join('');
+    const v = SETTINGS.get('musicVol') ?? 40;
+    $('#music-vol').value = v;
+    $('#music-vol-val').textContent = v + '%';
+    $('#my-songs').classList.toggle('on', cur === 'mine');
+    if (cur !== 'mine') return;
+    const songs = await MySongs.list();
+    const sel = SETTINGS.get('mySong') || 'all';
+    $('#ms-shuffle').checked = SETTINGS.get('shuffle') !== false;
+    $('#ms-list').innerHTML = songs.length
+      ? songs.map((x) => `<div class="ms-row ${x.id === sel ? 'sel' : ''}" data-song="${x.id}"><span>${x.id === sel ? '▶' : '🎵'} ${esc(x.name)}</span><button class="x" data-del="${x.id}">✕</button></div>`).join('')
+      : '<div class="ms-empty">No songs yet. Add some from your phone ↓</div>';
+  }
+  function initMusic() {
+    $('#track-list').onclick = (e) => {
+      const b = e.target.closest('[data-track]'); if (!b) return;
+      SETTINGS.set('musicTrack', b.dataset.track);
+      SFX.Music.refresh();
+      SFX.tap();
+      renderMusic();
+    };
+    $('#music-vol').oninput = (e) => {
+      SETTINGS.set('musicVol', +e.target.value);
+      $('#music-vol-val').textContent = e.target.value + '%';
+      SFX.Music.setVolume();
+    };
+    $('#ms-list').onclick = async (e) => {
+      const del = e.target.closest('[data-del]');
+      if (del) {
+        e.stopPropagation();
+        await MySongs.remove(del.dataset.del);
+        if (SETTINGS.get('mySong') === del.dataset.del) SETTINGS.set('mySong', 'all');
+        SFX.Music.refresh();
+        return renderMusic();
+      }
+      const row = e.target.closest('[data-song]'); if (!row) return;
+      SETTINGS.set('mySong', row.dataset.song);
+      SFX.Music.refresh();
+      SFX.tap();
+      renderMusic();
+    };
+    $('#ms-shuffle').onchange = (e) => {
+      SETTINGS.set('shuffle', e.target.checked);
+      SFX.Music.refresh();
+      SFX.tap();
+    };
+    $('#ms-file').onchange = async (e) => {
+      const files = [...e.target.files].filter((f) => f.type.startsWith('audio/') || /\.(mp3|m4a|aac|wav|ogg|opus|flac)$/i.test(f.name));
+      e.target.value = '';
+      if (!files.length) return toast('Pick audio files (mp3, m4a, wav…)');
+      try {
+        for (const f of files) await MySongs.add(f);
+        toast(`🎵 Added ${files.length} song${files.length > 1 ? 's' : ''}`);
+      } catch (_) { toast('Could not save that song: the phone may be low on storage'); }
+      SFX.Music.refresh();
+      renderMusic();
+    };
   }
 
   /* ---------- home ---------- */
@@ -1067,7 +1138,7 @@
   /* ---------- boot ---------- */
   splash();
   cashRain();
-  initSheets(); initHome(); initLocker(); initLobby(); initGame(); initEmotes(); initTutorial(); initResults();
+  initSheets(); initMusic(); initHome(); initLocker(); initLobby(); initGame(); initEmotes(); initTutorial(); initResults();
   const roomParam = new URLSearchParams(location.search).get('room');
   if (roomParam) {
     $('#code-input').value = roomParam.toUpperCase().slice(0, 4);

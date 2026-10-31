@@ -70,7 +70,8 @@ The player with the most **total cash (bank + crate)** at the end wins. Ties go 
 - 😀 **Emotes:** react during the game.
 - 📜 **Round log:** see who raided whom.
 - 👆 **Long-press any player** to see their habits, like how often they secure or raid.
-- ⚙️ **Settings:** sound, music, vibration and fast animations.
+- 🎵 **Music:** pick *Bella Ciao (heist remix)*, *Hall of the Mountain King*, the *Classic* theme, or **My songs**: add your own songs from your phone and they play softly in the background. Your songs stay on your phone and are never uploaded.
+- ⚙️ **Settings:** sound effects, music and volume, vibration, and fast animations.
 - 🎓 A short **tutorial** runs in your first game against bots.
 
 Have fun, and trust no one. 🦹
