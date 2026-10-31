@@ -61,6 +61,12 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
    - Awards at game end: Master Thief, Vault Keeper, Box Hunter, Iron Wall, Daredevil, Biggest Haul.
    - Bots: smarter EV model (aggression ramps with game progress, learns raid/secure habits, respects bounty/events). Sim of 300 games: ~67% claim / 21% raid / 12% secure; the leader with 3 rounds left wins only ~41%.
 
+## Live deployment
+- **Live URL:** https://vault-rush-njwu.onrender.com (Render free web service via `render.yaml` Blueprint, deployed 2026-10-31).
+- **GitHub repo:** `Avijit0104/vault-rush`. The owner uploads files through the GitHub website in an incognito window (no credentials on this PC).
+  Never upload `node_modules`. Render auto-redeploys on every commit to `main`.
+- README.md is **player-facing only** (play link + how to play). Keep dev/deploy notes here in CLAUDE.md, not in the README.
+
 ## How to run / test
 - `npm install` then `npm start` → http://localhost:3000. `npm test` runs 11 engine tests.
 - Browser testing: the Claude-in-Chrome extension could NOT reach localhost. Use puppeteer-core (install it in the session scratchpad) with the local Chrome at `C:/Program Files/Google/Chrome/Application/chrome.exe`. To skip the splash/tutorial in tests: `sessionStorage.vr_splash='1'`, `localStorage.vr_tut='1'`.
