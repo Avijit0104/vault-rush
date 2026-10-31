@@ -1,0 +1,22 @@
+{
+  "name": "vault-rush",
+  "version": "1.0.0",
+  "description": "Vault Rush — a 4-6 player mobile heist strategy game. Made by Avijit Bose.",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "author": "Avijit Bose",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "qrcode-generator": "^2.0.4",
+    "socket.io": "^4.8.1"
+  }
+}

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#120a2a" />
+  <meta name="description" content="Vault Rush — grab the cash, raid your rivals, lock your vault. A 4-6 player heist strategy game. Made by Avijit Bose." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta property="og:title" content="Vault Rush" />
+  <meta property="og:description" content="Grab the cash · Raid your rivals · Lock your vault. Made by Avijit Bose." />
+  <title>Vault Rush</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="bg" aria-hidden="true">
+    <div class="beam b1"></div><div class="beam b2"></div><div class="beam b3"></div>
+    <div class="floor"></div>
+    <div class="sparkles"></div>
+    <div class="cash-rain" id="cash-rain"></div>
+  </div>
+
+  <main id="app">
+    <!-- HOME -->
+    <section class="screen active" id="screen-home">
+      <div class="home-top"><span></span><button class="icon-btn" data-open="settings" aria-label="Settings">⚙️</button></div>
+      <div class="logo">
+        <div class="logo-vault"><div class="lv-ring"></div><div class="lv-handle"></div><span>₹</span></div>
+        <h1><span>VAULT</span><span class="gold">RUSH</span></h1>
+        <p class="tagline">Grab the cash · Raid your rivals · Lock your vault</p>
+      </div>
+
+      <div class="card">
+        <div class="id-row">
+          <div class="me-preview" id="me-preview"></div>
+          <div class="id-col">
+            <label class="lbl" for="name-input">YOUR NAME</label>
+            <input id="name-input" maxlength="14" placeholder="Enter a nickname" autocomplete="off" />
+          </div>
+        </div>
+        <div class="lbl">PICK YOUR ROBBER <span class="char-name" id="char-name"></span></div>
+        <div class="avatar-row" id="avatar-row"></div>
+      </div>
+
+      <div class="menu">
+        <button class="btn btn-gold btn-big" data-go="solo">▶ PLAY VS BOTS</button>
+        <div class="btn-row">
+          <button class="btn btn-cyan" id="btn-create">🌐 CREATE ROOM</button>
+          <button class="btn btn-purple" data-go="join">🔑 JOIN ROOM</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="btn-locker">🎨 LOCKER</button>
+          <button class="btn btn-ghost" data-go="rules">❓ HOW TO PLAY</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOCKER (unlockable looks) -->
+    <section class="screen" id="screen-locker">
+      <div class="topbar"><button class="icon-btn" data-go="home">←</button><h2>Locker</h2><span></span></div>
+      <div class="card locker-hero">
+        <div class="lk-preview"><div class="lk-av" id="lk-av"></div><div class="lk-crate" id="lk-crate"></div></div>
+        <div class="lk-stats" id="lk-stats"></div>
+      </div>
+      <div class="card">
+        <div class="lbl">HATS &amp; BLING</div>
+        <div class="lk-grid" id="lk-acc"></div>
+        <div class="lbl">CRATE SKINS</div>
+        <div class="lk-grid" id="lk-crates"></div>
+        <p class="hint">Play and win heists to unlock new looks. Everyone in your room sees what you wear!</p>
+      </div>
+    </section>
+
+    <!-- SOLO SETUP -->
+    <section class="screen" id="screen-solo">
+      <div class="topbar"><button class="icon-btn" data-go="home">←</button><h2>Play vs Bots</h2><span></span></div>
+      <div class="card">
+        <div class="lbl">ROUNDS</div>
+        <div class="chips" id="solo-rounds"></div>
+        <div class="lbl">OPPONENTS</div>
+        <div class="chips" id="solo-bots"></div>
+        <div class="lbl">TURN TIMER</div>
+        <div class="chips" id="solo-timer"></div>
+        <p class="hint">Bots have different personalities: greedy, cautious, aggressive and sneaky. Solo play works offline!</p>
+      </div>
+      <button class="btn btn-gold btn-big" id="btn-solo-start">🚀 START HEIST</button>
+    </section>
+
+    <!-- JOIN -->
+    <section class="screen" id="screen-join">
+      <div class="topbar"><button class="icon-btn" data-go="home">←</button><h2>Join Room</h2><span></span></div>
+      <div class="card">
+        <label class="lbl" for="code-input">ROOM CODE</label>
+        <input id="code-input" class="code-input" maxlength="4" placeholder="ABCD" autocomplete="off" autocapitalize="characters" />
+        <p class="hint">Ask the host for the 4-letter code, scan their QR, or open the link they shared. If the game already started you'll watch as a spectator and join the next one.</p>
+      </div>
+      <button class="btn btn-gold btn-big" id="btn-join">🔑 JOIN</button>
+    </section>
+
+    <!-- LOBBY -->
+    <section class="screen" id="screen-lobby">
+      <div class="topbar"><button class="icon-btn" id="btn-lobby-leave">←</button><h2>Lobby</h2><span></span></div>
+      <div class="card code-card">
+        <div class="code-left">
+          <div class="lbl">ROOM CODE</div>
+          <div class="room-code" id="lobby-code">----</div>
+          <button class="btn btn-cyan btn-small" id="btn-share">📤 SHARE INVITE</button>
+        </div>
+        <div class="qr" id="qr" title="Scan to join"></div>
+      </div>
+      <div class="card">
+        <div class="lbl">CREW <span id="lobby-count"></span></div>
+        <div class="lobby-list" id="lobby-list"></div>
+        <p class="hint" id="lobby-hint"></p>
+      </div>
+      <div class="card" id="lobby-settings">
+        <div class="lbl">ROUNDS</div>
+        <div class="chips" id="lobby-rounds"></div>
+        <div class="lbl">TURN TIMER</div>
+        <div class="chips" id="lobby-timer"></div>
+      </div>
+      <button class="btn btn-gold btn-big" id="btn-start">🚀 START HEIST</button>
+      <p class="waiting" id="lobby-wait">Waiting for the host to start…</p>
+    </section>
+
+    <!-- GAME -->
+    <section class="screen" id="screen-game">
+      <div class="alarm" aria-hidden="true"><span class="al l"></span><span class="al r"></span></div>
+      <header class="hud">
+        <div class="round-pill"><small>ROUND</small><b id="hud-round">1/10</b></div>
+        <div class="eg-pill" id="hud-chip"></div>
+        <div class="timer" id="timer">
+          <svg viewBox="0 0 44 44"><circle class="t-bg" cx="22" cy="22" r="19"/><circle class="t-fg" id="timer-ring" cx="22" cy="22" r="19"/></svg>
+          <span id="timer-num">30</span>
+        </div>
+        <button class="icon-btn small" data-open="log" aria-label="Round log">📜</button>
+        <button class="icon-btn small" data-open="settings" aria-label="Settings">⚙️</button>
+      </header>
+
+      <div class="arena" id="arena">
+        <div class="table-zone" id="table">
+          <div class="runway"><span class="rw-label">💰 CASH DROP</span></div>
+          <div class="side left" id="side-left"></div>
+          <div class="center"><div class="boxes" id="boxes"></div></div>
+          <div class="side right" id="side-right"></div>
+        </div>
+        <div class="caption" id="caption"></div>
+      </div>
+
+      <footer class="action-bar">
+        <button class="icon-btn emote-btn" id="btn-emote" aria-label="Emotes">😀</button>
+        <div class="action-text" id="action-text">Tap a box, a rival or your vault</div>
+        <button class="btn btn-gold btn-small" id="btn-lock" disabled>LOCK IN</button>
+      </footer>
+      <div class="emote-picker" id="emote-picker"></div>
+
+      <div class="banner" id="banner"></div>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="screen" id="screen-results">
+      <div class="trophy"><span>🏆</span></div>
+      <h2 class="results-title">FINAL RESULTS</h2>
+      <div class="winner" id="winner"></div>
+      <div class="awards" id="awards"></div>
+      <div class="card result-list" id="result-list"></div>
+      <div class="menu">
+        <button class="btn btn-gold btn-big" id="btn-again">🔁 PLAY AGAIN</button>
+        <button class="btn btn-ghost" id="btn-home">🏠 HOME</button>
+      </div>
+    </section>
+
+    <!-- RULES -->
+    <section class="screen" id="screen-rules">
+      <div class="topbar"><button class="icon-btn" data-go="home">←</button><h2>How to Play</h2><span></span></div>
+      <div class="card rules">
+        <p>Every round, cash boxes parachute into the vault. You have <b>30 seconds</b> to tap <b>one</b> thing:</p>
+        <div class="rule"><span class="ri">📦</span><div><b>Tap a box to CLAIM it.</b><br/>If several players pick the same box, the cash is <b>split</b> between them. The biggest box isn't always the best pick!</div></div>
+        <div class="rule"><span class="ri">⚔️</span><div><b>Tap a rival to RAID them.</b><br/>Steal <b>50%</b> of their unsecured cash (shared if others raid them too). If they lock their vault, you're <b>blocked</b>: you lose a ❤️ and half your unsecured cash goes to them.</div></div>
+        <div class="rule"><span class="ri">🔒</span><div><b>Tap your vault to SECURE.</b><br/>Moves your unsecured cash into your vault (5% bank fee). Vault cash can never be stolen, and you block every raid that round.</div></div>
+        <div class="rule"><span class="ri">👑</span><div><b>Bounty:</b> the richest player wears the crown. Raiding them steals <b>60%</b>, so anyone can catch up!</div></div>
+        <div class="rule"><span class="ri">🎲</span><div><b>Random events:</b> 🌟 Golden Box (×2), 🚨 High Alert (blocked raiders lose everything), 🌑 Blackout (values hidden), 🎁 Bonus Drop (extra box), 🏦 Bank Holiday (no fee).</div></div>
+        <div class="rule"><span class="ri">❤️</span><div>Everyone starts with <b>4 lives</b>. At 0 you're eliminated and become a spectator.</div></div>
+        <div class="rule"><span class="ri">🔥</span><div><b>Endgame:</b> the last 3 rounds pay ×1.5, ×2 and ×3. In the <b>FINAL HEIST</b> vaults are jammed, so nobody can secure!</div></div>
+        <div class="rule"><span class="ri">🏆</span><div>Most total cash (vault + unsecured) at the end wins. Ties go to whoever has more lives.</div></div>
+        <p class="hint">Tip: long-press any player to see their habits: how often they secure and raid.</p>
+      </div>
+      <button class="btn btn-gold btn-big" data-go="home">GOT IT</button>
+    </section>
+  </main>
+
+  <footer class="credit">Made by <b>Avijit Bose</b></footer>
+
+  <!-- overlays -->
+  <div id="fx" aria-hidden="true"></div>
+  <div id="toast"></div>
+
+  <div class="sheet-wrap" id="sheet-settings">
+    <div class="sheet">
+      <div class="sheet-head"><h3>⚙️ Settings</h3><button class="icon-btn small" data-close>✕</button></div>
+      <label class="toggle"><span>🔊 Sound effects</span><input type="checkbox" data-setting="sfx" /><i></i></label>
+      <label class="toggle"><span>🎵 Music</span><input type="checkbox" data-setting="music" /><i></i></label>
+      <label class="toggle"><span>📳 Vibration</span><input type="checkbox" data-setting="vibrate" /><i></i></label>
+      <label class="toggle"><span>⚡ Fast animations</span><input type="checkbox" data-setting="fastAnim" /><i></i></label>
+      <button class="btn btn-ghost" id="btn-reset-tut">🎓 Show tutorial again</button>
+      <button class="btn btn-red" id="btn-game-leave">🚪 Leave game</button>
+      <p class="sheet-credit">Vault Rush · Made by <b>Avijit Bose</b></p>
+    </div>
+  </div>
+
+  <div class="sheet-wrap" id="sheet-log">
+    <div class="sheet">
+      <div class="sheet-head"><h3>📜 Round Log</h3><button class="icon-btn small" data-close>✕</button></div>
+      <div class="log" id="log-list"><p class="hint">Nothing yet. Play a round!</p></div>
+    </div>
+  </div>
+
+  <div class="sheet-wrap" id="sheet-player">
+    <div class="sheet player-sheet" id="player-info"></div>
+  </div>
+
+  <div class="coach" id="coach">
+    <div class="coach-hole" id="coach-hole"></div>
+    <div class="coach-card" id="coach-card"><p id="coach-text"></p><div class="coach-foot"><span id="coach-step"></span><button class="btn btn-gold btn-small" id="coach-next">NEXT</button></div></div>
+  </div>
+
+  <div id="modal" class="modal"><div class="modal-card"><p id="modal-text"></p><div class="btn-row"><button class="btn btn-ghost" id="modal-no">Cancel</button><button class="btn btn-red" id="modal-yes">Leave</button></div></div></div>
+  <div id="loading" class="loading"><div class="spinner"></div><p id="loading-text">Connecting…</p></div>
+
+  <div id="splash" class="splash">
+    <div class="sp-door l"><div class="sp-bolts"></div></div>
+    <div class="sp-door r"><div class="sp-bolts"></div></div>
+    <div class="sp-wheel"><div class="sp-spokes"></div><span>₹</span></div>
+    <div class="sp-title">VAULT <b>RUSH</b><small>Made by Avijit Bose</small></div>
+  </div>
+
+  <script src="shared/config.js"></script>
+  <script src="shared/engine.js"></script>
+  <script src="shared/room.js"></script>
+  <script src="/socket.io/socket.io.js" onerror="window.io=null"></script>
+  <script src="/vendor/qrcode.js" onerror="window.qrcode=null"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/anim.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

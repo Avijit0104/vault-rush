@@ -1,0 +1,13 @@
+# Render Blueprint — one free web service runs the whole game (client + realtime server).
+services:
+  - type: web
+    name: vault-rush
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
