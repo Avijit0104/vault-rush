@@ -127,6 +127,10 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
 
 ## Session log
 - **2026-10-31 (S1)**: Built the whole MVP from idea.md. Owner will push to GitHub from another PC/account and deploy on Render; I must not push.
+- **2026-10-31 (S5c)**: Default music is now a REAL "Bella ciao" recording: `public/music/bella-ciao-serbian-guards.ogg` (original from
+  Wikimedia Commons, by Tinkes, CC BY-SA 4.0, verified on the file page) + `.m4a` (converted in headless Chrome for iPhone). Credit shown in
+  Settings, README and `public/music/CREDITS.txt`; **keep the attribution**. The synth Bella arrangement is only a fallback if the file can't play.
+  The SW skips `/music/` (range requests). Endgame plays the recording at 1.07x.
 - **2026-10-31 (S5b)**: Shuffle toggle (on by default) for My songs. Checked NCS policy: On & On needs a licence for games, not bundled.
 - **2026-10-31 (S5)**: Music picker + "My songs" (local files) + volume. Copyrighted songs are not bundled (public repo/site).
 - **2026-10-31 (S4)**: Owner chose UI ideas 2-6 (reactions, danger meter, unlockables, comic pop-ups, slow-mo final). All done.

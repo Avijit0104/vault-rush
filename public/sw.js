@@ -1,5 +1,5 @@
 /* Vault Rush service worker — network-first, falls back to cache so solo mode works offline. */
-const CACHE = 'vault-rush-v6';
+const CACHE = 'vault-rush-v7';
 const ASSETS = [
   './', 'index.html', 'css/style.css', 'icon.svg', 'manifest.webmanifest',
   'shared/config.js', 'shared/engine.js', 'shared/room.js',
@@ -17,7 +17,8 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.pathname.startsWith('/socket.io/')) return;
+  // music is streamed with range requests: let the browser handle it directly
+  if (e.request.method !== 'GET' || url.pathname.startsWith('/socket.io/') || url.pathname.includes('/music/')) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {

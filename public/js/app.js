@@ -139,7 +139,7 @@
 
   /* ---------- music picker (settings) ---------- */
   const TRACKS = [
-    { id: 'bella', icon: '🎭', name: 'Bella Ciao', sub: 'Heist remix · default' },
+    { id: 'bella', icon: '🎺', name: 'Bella Ciao', sub: 'Real recording · Orchestra of Serbian Guards · default' },
     { id: 'mountain', icon: '🎬', name: 'Hall of the Mountain King', sub: 'Grieg · speeds up every loop' },
     { id: 'classic', icon: '🎹', name: 'Classic Vault Rush', sub: 'The original game music' },
     { id: 'mine', icon: '🎧', name: 'My songs', sub: 'Songs you add from this phone' },

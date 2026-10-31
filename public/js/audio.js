@@ -93,7 +93,9 @@ const SFX = (() => {
    * Synth tracks (public-domain melodies, our own arrangement) + "My songs" played from the player's own phone. */
   const Music = (() => {
     let timer = null, level = 0, bus = null, track = null, st = null;
-    let audio = null, myList = [], myIdx = 0, myUrl = null;
+    let audio = null, myList = [], myIdx = 0, myUrl = null, bellaFailed = false;
+    // Default track: a real "Bella ciao" recording (Representative Orchestra of Serbian Guards, by Tinkes, CC BY-SA 4.0, Wikimedia Commons)
+    const BELLA = { m4a: 'music/bella-ciao-serbian-guards.m4a', ogg: 'music/bella-ciao-serbian-guards.ogg' };
     const N = (m) => 440 * Math.pow(2, (m - 69) / 12);
     const vol = () => (SETTINGS.get('musicVol') ?? 40) / 100;
     const busGain = () => 0.6 * vol();
@@ -196,6 +198,27 @@ const SFX = (() => {
       timer = setInterval(tick, 50);
     }
 
+    function ensureAudio() {
+      if (audio) return audio;
+      audio = new Audio();
+      audio.preload = 'auto';
+      audio.addEventListener('ended', () => { if (track === 'mine') { myIdx++; playMineAt(); } });
+      audio.addEventListener('error', () => {
+        // phone can't play the recording → fall back to the built-in synth arrangement
+        if (track === 'bella' && !bellaFailed && audio.getAttribute('src')) { bellaFailed = true; startSynth(); }
+      });
+      return audio;
+    }
+    function playBella() {
+      const a = ensureAudio();
+      const want = a.canPlayType('audio/mp4') ? BELLA.m4a : BELLA.ogg;
+      if (!(a.getAttribute('src') || '').endsWith(want)) a.src = want;
+      a.loop = true;
+      a.playbackRate = level >= 2 ? 1.07 : 1; // a touch faster in the endgame
+      a.volume = Math.min(1, 0.6 * vol());
+      a.play().catch(() => {});
+    }
+
     /* ----- My songs (files the player added on their own phone) ----- */
     async function startMine() {
       const songs = await MySongs.list();
@@ -211,10 +234,7 @@ const SFX = (() => {
     async function playMineAt() {
       const rec = await MySongs.get(myList[myIdx % myList.length]);
       if (track !== 'mine' || !rec) return;
-      if (!audio) {
-        audio = new Audio();
-        audio.addEventListener('ended', () => { myIdx++; playMineAt(); });
-      }
+      ensureAudio();
       if (myUrl) URL.revokeObjectURL(myUrl);
       myUrl = URL.createObjectURL(rec.blob);
       audio.src = myUrl;
@@ -241,6 +261,7 @@ const SFX = (() => {
           else startMine();
           return;
         }
+        if (track === 'bella' && !bellaFailed) return playBella();
         startSynth();
       },
       stop() { halt(); },            // pause (keeps position — used when the app goes to background)

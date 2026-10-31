@@ -70,9 +70,12 @@ The player with the most **total cash (bank + crate)** at the end wins. Ties go 
 - 😀 **Emotes:** react during the game.
 - 📜 **Round log:** see who raided whom.
 - 👆 **Long-press any player** to see their habits, like how often they secure or raid.
-- 🎵 **Music:** pick *Bella Ciao (heist remix)*, *Hall of the Mountain King*, the *Classic* theme, or **My songs**: add your own songs from your phone and they play softly in the background. Your songs stay on your phone and are never uploaded.
+- 🎵 **Music:** *Bella Ciao* plays by default (a real orchestra recording). You can switch to *Hall of the Mountain King*, the *Classic* theme, or **My songs**: add your own songs from your phone, with shuffle on by default. Your songs stay on your phone and are never uploaded.
 - ⚙️ **Settings:** sound effects, music and volume, vibration, and fast animations.
 - 🎓 A short **tutorial** runs in your first game against bots.
+
+## 🎺 Music credit
+“Bella ciao” performed by the Representative Orchestra of Serbian Guards. Recording by [Tinkes](https://commons.wikimedia.org/wiki/File:Bella_ciao,_Representative_Orchestra_of_Serbian_Guards_(ROG).ogg), licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), via Wikimedia Commons. Included unmodified, plus a copy converted to m4a for iPhone.
 
 Have fun, and trust no one. 🦹
 

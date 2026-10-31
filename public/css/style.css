@@ -590,3 +590,5 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
 .ms-add { display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .ms-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 6px; }
 .ms-shuffle { margin-bottom: 8px; background: rgba(0, 0, 0, .3); }
+.music-credit { margin: 10px 0 0; font-size: 11px; line-height: 1.45; color: var(--muted); }
+.music-credit a { color: var(--cyan); }
