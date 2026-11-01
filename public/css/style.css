@@ -52,7 +52,25 @@ svg { display: block; }
 .cash-rain i { position: absolute; top: -40px; width: 22px; height: 22px; opacity: .45; animation: cashfall linear infinite; }
 .cash-rain i.bill { width: 34px; height: 18px; border-radius: 3px; background: linear-gradient(90deg, #2fbf6f, #7dff9b 50%, #2fbf6f); box-shadow: inset 0 0 0 2px #1b7a43; }
 @keyframes cashfall { to { transform: translateY(115vh) rotate(540deg); } }
-body.in-game .cash-rain { opacity: 0; }
+body.in-game .cash-rain,
+body.in-game .beam,
+body.in-game .floor,
+body.fast-anim .beam,
+body.fast-anim .floor,
+body.fast-anim .sparkles,
+body.fast-anim .cash-rain,
+body.low-end .beam,
+body.low-end .floor,
+body.low-end .sparkles,
+body.low-end .cash-rain { display: none !important; }
+
+body.low-end .card, body.fast-anim .card {
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  background: rgba(22, 11, 51, 0.88) !important;
+}
+body.low-end .crate, body.fast-anim .crate {
+  filter: drop-shadow(0 4px 6px #000a) !important;
+}
 
 /* ---------- screens ---------- */
 #app { position: relative; z-index: 1; height: 100%; height: 100dvh; padding-bottom: var(--credit-h); }

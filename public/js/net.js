@@ -5,7 +5,7 @@ class OnlineConn {
     this.handlers = {};
     this.mode = 'online';
     this.socket = window.io({ transports: ['websocket', 'polling'], reconnection: true });
-    ['state', 'joined', 'emote', 'errorMsg', 'kicked', 'rejoinFailed', 'connect', 'disconnect', 'connect_error']
+    ['state', 'tick', 'joined', 'emote', 'errorMsg', 'kicked', 'rejoinFailed', 'connect', 'disconnect', 'connect_error']
       .forEach((ev) => this.socket.on(ev, (d) => this.emit(ev, d)));
   }
   on(type, fn) { this.handlers[type] = fn; }

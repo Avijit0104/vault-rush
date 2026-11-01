@@ -127,6 +127,7 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
 
 ## Session log
 - **2026-10-31 (S1)**: Built the whole MVP from idea.md. Owner will push to GitHub from another PC/account and deploy on Render; I must not push.
+- **2026-11-02 (S6)**: Mobile lag and reconnection diagnosis. Fixed missing 'tick' event forwarding in OnlineConn (public/js/net.js); added low-end device detection, disabled heavy 30px CSS blurs (.beam) and 3D floor animation (.floor) during gameplay (style.css); explained Render free-tier proxy/cold-start limits, WakeLock fallback, and mobile tab backgrounding.
 - **2026-10-31 (S5c)**: Default music is now a REAL "Bella ciao" recording: `public/music/bella-ciao-serbian-guards.ogg` (original from
   Wikimedia Commons, by Tinkes, CC BY-SA 4.0, verified on the file page) + `.m4a` (converted in headless Chrome for iPhone). Credit shown in
   Settings, README and `public/music/CREDITS.txt`; **keep the attribution**. The synth Bella arrangement is only a fallback if the file can't play.

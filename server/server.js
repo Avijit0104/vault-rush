@@ -10,7 +10,14 @@ const { GameRoom } = require('../public/shared/room.js');
 const PORT = process.env.PORT || 3000;
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { pingInterval: 10000, pingTimeout: 20000 });
+const io = new Server(server, {
+  pingInterval: 25000,      // Increased from 10s for mobile networks (reduces unnecessary pings)
+  pingTimeout: 60000,       // Increased from 20s to handle slow networks better
+  connectTimeout: 45000,    // Allow more time for initial connection
+  transports: ['websocket', 'polling'], // Fallback to polling if WebSocket fails
+  allowUpgrades: true,      // Allow upgrading from polling to WebSocket
+  perMessageDeflate: false, // Disable compression to reduce CPU load on old phones
+});
 
 app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
 app.get('/vendor/qrcode.js', (_req, res) => res.sendFile(path.join(__dirname, '..', 'node_modules', 'qrcode-generator', 'dist', 'qrcode.js')));

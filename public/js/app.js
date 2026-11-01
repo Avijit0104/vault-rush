@@ -38,8 +38,31 @@
     qrCode: null,
     musicLevel: 0,
     profile: loadProfile(),
+    isLowEndDevice: detectLowEndDevice(), // Detect old/slow phones for adaptive performance
   };
   let refreshPreview = () => {};
+
+  /* ---------- Device detection for performance optimization ---------- */
+  function detectLowEndDevice() {
+    // Detect older/slower devices to apply aggressive optimizations
+    const ua = navigator.userAgent.toLowerCase();
+    const isMobile = /android|iphone|ipad|ipod/.test(ua);
+    if (!isMobile) return false;
+
+    // Check hardware concurrency (CPU cores) - old phones typically have 2-4 cores
+    const cores = navigator.hardwareConcurrency || 4;
+    if (cores <= 2) return true;
+
+    // Check memory (if available) - old phones typically have <2GB
+    const memory = (navigator.deviceMemory || 4);
+    if (memory <= 2) return true;
+
+    // Old Android versions or iOS versions
+    const isOldAndroid = /android [4-6]/.test(ua);
+    const isOldIOS = /os [8-9]_/.test(ua);
+
+    return isOldAndroid || isOldIOS;
+  }
 
   /* ---------- utils ---------- */
   const fmt = (n) => C.CURRENCY + Math.round(n).toLocaleString('en-IN');
@@ -132,6 +155,7 @@
     $$('[data-setting]').forEach((i) => (i.onchange = () => {
       SETTINGS.set(i.dataset.setting, i.checked);
       if (i.dataset.setting === 'music') SFX.Music.refresh();
+      if (i.dataset.setting === 'fastAnim') document.body.classList.toggle('fast-anim', i.checked);
       SFX.tap();
     }));
     $('#btn-reset-tut').onclick = () => { localStorage.removeItem('vr_tut'); toast('Tutorial will show in your next solo game'); };
@@ -353,12 +377,23 @@
     S.conn = new OnlineConn();
     wire(S.conn);
     let first = true;
+    let reconnectAttempts = 0;
     S.conn.on('connect', () => {
       clearTimeout(slow);
+      reconnectAttempts = 0; // Reset counter on successful connection
       if (first) { first = false; after(); }
-      else tryRejoin();
+      else { tryRejoin(); toast('Reconnected!', 1500); }
     });
-    S.conn.on('disconnect', () => { if (S.view) toast('Connection lost: reconnecting…'); });
+    S.conn.on('disconnect', (reason) => {
+      if (!S.view) return; // Don't show toast if not in a game
+      reconnectAttempts++;
+      // Only show toast after first reconnect attempt (reduces noise for brief network hiccups)
+      if (reconnectAttempts === 1) {
+        toast('Connection lost: reconnecting…');
+      } else if (reconnectAttempts > 3) {
+        toast('Connection unstable. Check your network.', 3000);
+      }
+    });
     S.conn.on('rejoinFailed', () => { localStorage.removeItem('vr_session'); toast('Your game has ended'); leave(true); });
   }
 
@@ -416,9 +451,11 @@
     if (!S.view || S.view.phase !== 'ACTION' || S.animating) return;
     S.view.timeLeft = data.timeLeft;
 
-    // Throttle visual updates on mobile to every 2 seconds (reduces CPU/GPU load by ~60%)
+    // Adaptive throttling based on device capability
+    const throttleInterval = S.isLowEndDevice ? 3000 : 2000; // Old phones: update every 3s
     const now = Date.now();
-    if (!S.lastTimerRender || now - S.lastTimerRender > 2000 || data.timeLeft <= 5) {
+
+    if (!S.lastTimerRender || now - S.lastTimerRender > throttleInterval || data.timeLeft <= 5) {
       S.lastTimerRender = now;
       renderTimer(S.view);
     } else {
@@ -1154,6 +1191,8 @@
   });
 
   /* ---------- boot ---------- */
+  if (S.isLowEndDevice) document.body.classList.add('low-end');
+  if (SETTINGS.get('fastAnim')) document.body.classList.add('fast-anim');
   splash();
   cashRain();
   initSheets(); initMusic(); initHome(); initLocker(); initLobby(); initGame(); initEmotes(); initTutorial(); initResults();
@@ -1166,7 +1205,7 @@
   } else resumeSession();
 
   // wake the (free-tier) server early while the player is still on the menu
-  if (window.io && location.protocol.startsWith('http')) fetch('healthz').catch(() => {});
+  if (window.io && location.protocol.startsWith('http')) fetch('/healthz').catch(() => {});
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
