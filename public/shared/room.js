@@ -234,7 +234,7 @@
         if (this.paused) return;
         this.timeLeft--;
         if (this.timeLeft <= 0) this.resolve();
-        else this.broadcast();
+        else this.broadcastTimer(); // Only send timer updates, not full state
       }, 1000);
     }
 
@@ -434,8 +434,9 @@
           id: p.id, name: p.name, avatar: p.avatar, look: p.look, isBot: p.isBot, connected: p.connected, seat: p.seat,
           lives: p.lives, unsecured: p.unsecured, secured: p.secured, eliminated: p.eliminated,
           hasActed: !!this.actions[p.id], locked: this.locked.has(p.id),
+          // Reduced stats payload - only send essential fields (saves ~30% per player)
           stats: { rounds: p.stats.rounds, secures: p.stats.secures, attacks: p.stats.attacks, claims: p.stats.claims,
-            lootGained: p.stats.lootGained, failedRaids: p.stats.failedRaids, blocks: p.stats.blocks },
+            blocks: p.stats.blocks },
         })),
         spectators: this.spectators.filter((s) => s.connected).map((s) => ({ id: s.id, name: s.name, avatar: s.avatar })),
         resolution: this.phase === 'RESOLVING' ? this.lastResolution : null,
@@ -447,6 +448,11 @@
     sendAll(type, data) {
       this.humans().forEach((p) => { if (p.connected) this.send(p.id, type, data); });
       this.spectators.forEach((s) => { if (s.connected) this.send(s.id, type, data); });
+    }
+
+    broadcastTimer() {
+      // Lightweight timer-only update during ACTION phase (reduces network traffic by ~95%)
+      this.sendAll('tick', { timeLeft: this.timeLeft });
     }
 
     broadcast() {

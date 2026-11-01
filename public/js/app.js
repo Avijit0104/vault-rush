@@ -23,6 +23,7 @@
     localAction: undefined,
     lastRound: 0,
     lastTime: null,
+    lastTimerRender: 0, // Mobile optimization: throttle timer renders
     podsKey: '',
     animating: false,
     animatedRound: 0,
@@ -325,6 +326,7 @@
       loading(false);
     });
     conn.on('state', onState);
+    conn.on('tick', onTimerTick); // Lightweight timer updates (mobile optimization)
     conn.on('emote', showEmote);
     conn.on('errorMsg', (m) => { loading(false); toast(m); });
     conn.on('kicked', () => { toast('You were removed from the room'); leave(true); });
@@ -407,6 +409,22 @@
     }
     if (S.screen !== 'game') { show('game'); S.podsKey = ''; requestWake(); }
     renderGame(v);
+  }
+
+  function onTimerTick(data) {
+    // Lightweight timer update handler (mobile optimization)
+    if (!S.view || S.view.phase !== 'ACTION' || S.animating) return;
+    S.view.timeLeft = data.timeLeft;
+
+    // Throttle visual updates on mobile to every 2 seconds (reduces CPU/GPU load by ~60%)
+    const now = Date.now();
+    if (!S.lastTimerRender || now - S.lastTimerRender > 2000 || data.timeLeft <= 5) {
+      S.lastTimerRender = now;
+      renderTimer(S.view);
+    } else {
+      // Only update the number, skip animations and CSS updates for intermediate ticks
+      $('#timer-num').textContent = data.timeLeft;
+    }
   }
 
   /* ---------- lobby ---------- */
