@@ -9,7 +9,7 @@
     MIN_PLAYERS: 4,
     MAX_PLAYERS: 6,
 
-    STARTING_LIVES: 4,
+    STARTING_LIVES: 2,
 
     ACTION_TIME_SECONDS: 30,           // default turn timer
     ACTION_TIME_OPTIONS: [15, 20, 30], // host can choose
