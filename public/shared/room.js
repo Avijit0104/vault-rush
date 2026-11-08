@@ -10,7 +10,7 @@
   const BOT_NAMES = ['Rocky', 'Tokyo', 'Nairobi', 'Denver', 'Rio', 'Berlin', 'Helsinki', 'Lisbon', 'Oslo', 'Bogota', 'Marseille', 'Palermo'];
   const BOT_AVATARS = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5'];
   const freshStats = () => ({
-    rounds: 0, secures: 0, attacks: 0, claims: 0, lastAction: null,
+    rounds: 0, secures: 0, attacks: 0, claims: 0, lastAction: null, lastTarget: null,
     lootGained: 0, lootLost: 0, securedTotal: 0, claimedTotal: 0, blocks: 0, failedRaids: 0, biggestGain: 0,
   });
 
@@ -62,7 +62,13 @@
       if (this.interval) clearInterval(this.interval);
       this.interval = null;
     }
-    destroy() { this.clearTimers(); }
+    destroy() {
+      this.clearTimers();
+      if (this.bcastPending) {
+        if (this.bcastPending.imm) clearImmediate(this.bcastPending.imm); else clearTimeout(this.bcastPending.to);
+        this.bcastPending = null;
+      }
+    }
 
     /* ---------- players ---------- */
     humans() { return this.players.filter((p) => !p.isBot); }
@@ -238,18 +244,27 @@
       }, 1000);
     }
 
+    botDecide(bot) {
+      this.actions[bot.id] = ENGINE.botChooseAction(this.botView(), bot.id, this.rng);
+    }
+
+    // Bots pick early-ish (like a quick human), sometimes rethink later. Any bot still undecided picks the
+    // moment the round is cut short (everyone locked in) or ends, so a bot is never left idle.
     scheduleBots() {
       const T = this.actionTime;
       this.active().filter((p) => p.isBot).forEach((bot) => {
         const decide = () => {
           if (this.phase !== 'ACTION') return;
           if (this.paused) return this.later(decide, 1000);
-          this.actions[bot.id] = ENGINE.botChooseAction(this.botView(), bot.id, this.rng);
+          this.botDecide(bot);
           this.broadcast();
         };
-        this.later(decide, (1.2 + this.rng() * (T * 0.45)) * 1000);
-        if (this.rng() < 0.35) this.later(decide, (T * 0.55 + this.rng() * (T * 0.3)) * 1000); // change of mind
+        this.later(decide, (1.5 + this.rng() * Math.min(T * 0.3, 7)) * 1000);
+        if (this.rng() < 0.3) this.later(decide, (T * 0.45 + this.rng() * (T * 0.25)) * 1000); // change of mind
       });
+    }
+    decideIdleBots() {
+      this.active().filter((p) => p.isBot && !this.actions[p.id]).forEach((bot) => this.botDecide(bot));
     }
 
     botView() {
@@ -283,16 +298,21 @@
       if (!p || p.eliminated || this.phase !== 'ACTION' || !this.actions[id]) return;
       this.locked.add(id);
       const waiting = this.active().filter((h) => !h.isBot && h.connected && !this.locked.has(h.id));
-      if (!waiting.length && this.timeLeft > CONFIG.LOCKED_IN_FAST_FORWARD) this.timeLeft = CONFIG.LOCKED_IN_FAST_FORWARD;
+      if (!waiting.length && this.timeLeft > CONFIG.LOCKED_IN_FAST_FORWARD) {
+        this.timeLeft = CONFIG.LOCKED_IN_FAST_FORWARD;
+        this.decideIdleBots(); // the round was just cut short: bots that hadn't picked yet pick now
+      }
       this.broadcast();
     }
 
     resolve() {
       this.clearTimers();
+      this.decideIdleBots(); // safety net: no bot ever goes into a round with no move
       this.phase = 'RESOLVING';
       this.timeLeft = 0;
       this.paused = false;
-      const before = this.players.map((p) => ({ ...p, stats: { ...p.stats } }));
+      // what the reveal animation starts from (sent to every phone: never include rejoin tokens)
+      const before = this.players.map(({ id, lives, unsecured, secured, eliminated }) => ({ id, lives, unsecured, secured, eliminated }));
       const res = ENGINE.resolveRound(this.players, this.boxes, this.actions, {
         secureDisabled: !!(this.endgame && this.endgame.secureDisabled),
         leaderId: this.leaderId,
@@ -308,6 +328,7 @@
         const s = st[p.id];
         s.rounds++;
         s.lastAction = a.type;
+        s.lastTarget = a.type === 'ATTACK' ? a.targetId : null; // bots remember who raided whom (grudges)
         if (a.type === 'SECURE') s.secures++;
         if (a.type === 'ATTACK') s.attacks++;
         if (a.type === 'CLAIM') s.claims++;
@@ -327,7 +348,8 @@
 
       const shown = res.events.filter((e) => e.type !== 'unclaimed').length;
       const slowMo = !!(this.endgame && this.endgame.secureDisabled); // final heist: slow-motion reveal with drumrolls
-      const duration = Math.round(Math.min(slowMo ? 34000 : 18000, (2600 + shown * 1400) * (slowMo ? 1.8 : 1)));
+      // reveal length the phones animate to (kept in step with playResolution in app.js)
+      const duration = Math.round(Math.min(slowMo ? 28000 : 15000, (2000 + shown * 1100) * (slowMo ? 1.6 : 1)));
       this.lastResolution = {
         round: this.round, events: res.events, actions: res.actions, before, duration,
         boxes: this.boxes, event: this.event, leaderId: this.leaderId,
@@ -408,7 +430,8 @@
     }
 
     /* ---------- outgoing ---------- */
-    viewFor(viewerId) {
+    // The part of the state that is the same for everyone (built once per send, not once per player).
+    sharedView() {
       const eg = this.endgame;
       const blackout = this.event === 'BLACKOUT' && (this.phase === 'INTRO' || this.phase === 'ACTION');
       const ev = this.event && CONFIG.EVENTS[this.event];
@@ -418,8 +441,6 @@
         round: this.round,
         maxRounds: this.maxRounds,
         hostId: this.hostId,
-        youId: viewerId,
-        spectating: !!this.getSpec(viewerId),
         timeLeft: this.timeLeft,
         actionTime: this.actionTime,
         paused: this.paused,
@@ -428,20 +449,28 @@
         leaderId: this.phase === 'LOBBY' ? null : this.leaderId,
         settings: this.settings,
         boxes: this.phase === 'LOBBY' ? [] : this.boxes.map((b) => (blackout ? { id: b.id, tier: 'MYSTERY', value: null } : b)),
-        yourAction: this.actions[viewerId] || null,
-        youLocked: this.locked.has(viewerId),
         players: this.players.map((p) => ({
           id: p.id, name: p.name, avatar: p.avatar, look: p.look, isBot: p.isBot, connected: p.connected, seat: p.seat,
           lives: p.lives, unsecured: p.unsecured, secured: p.secured, eliminated: p.eliminated,
           hasActed: !!this.actions[p.id], locked: this.locked.has(p.id),
-          // Reduced stats payload - only send essential fields (saves ~30% per player)
+          // only what the seats + the long-press stats sheet show
           stats: { rounds: p.stats.rounds, secures: p.stats.secures, attacks: p.stats.attacks, claims: p.stats.claims,
-            blocks: p.stats.blocks },
+            blocks: p.stats.blocks, failedRaids: p.stats.failedRaids, lootGained: p.stats.lootGained },
         })),
         spectators: this.spectators.filter((s) => s.connected).map((s) => ({ id: s.id, name: s.name, avatar: s.avatar })),
         resolution: this.phase === 'RESOLVING' ? this.lastResolution : null,
         ranking: this.ranking,
         awards: this.awards,
+      };
+    }
+
+    viewFor(viewerId, shared) {
+      return {
+        ...(shared || this.sharedView()),
+        youId: viewerId,
+        spectating: !!this.getSpec(viewerId),
+        yourAction: this.actions[viewerId] || null,
+        youLocked: this.locked.has(viewerId),
       };
     }
 
@@ -455,9 +484,17 @@
       this.sendAll('tick', { timeLeft: this.timeLeft });
     }
 
+    /* Several changes often happen in the same moment (two bots deciding, a tap + lock-in, a reconnect):
+     * they are merged into ONE state send per player instead of one each. */
     broadcast() {
-      this.humans().forEach((p) => { if (p.connected) this.send(p.id, 'state', this.viewFor(p.id)); });
-      this.spectators.forEach((s) => { if (s.connected) this.send(s.id, 'state', this.viewFor(s.id)); });
+      if (this.bcastPending) return;
+      const flush = () => { this.bcastPending = null; this.flushBroadcast(); };
+      this.bcastPending = typeof setImmediate === 'function' ? { imm: setImmediate(flush) } : { to: setTimeout(flush, 0) };
+    }
+    flushBroadcast() {
+      const shared = this.sharedView();
+      this.humans().forEach((p) => { if (p.connected) this.send(p.id, 'state', this.viewFor(p.id, shared)); });
+      this.spectators.forEach((s) => { if (s.connected) this.send(s.id, 'state', this.viewFor(s.id, shared)); });
     }
   }
 

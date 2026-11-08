@@ -31,7 +31,7 @@ Every round, cash boxes parachute into the middle of the vault. You have **15, 2
 | Tap | What happens |
 |---|---|
 | 📦 **A box** | **Claim** its cash. If other players pick the same box, the cash is **split** between you, so the biggest box isn't always the best choice! |
-| ⚔️ **A rival** | **Raid** them and steal **50%** of the unsecured cash in their crate. But if they secured that round, you're **blocked**: you lose a ❤️ and half your unsecured cash goes to them. |
+| ⚔️ **A rival** | **Raid** them and steal **95%** of the unsecured cash in their crate. But if they secured that round, you're **blocked**: you lose a ❤️ and half your unsecured cash goes to them. |
 | 🔒 **Your safe** | **Secure** your crate's cash into your bank (5% fee). Banked cash can never be stolen, and you block every raid on you that round. |
 
 - Everyone chooses **secretly**. When the timer hits 0, all moves happen at once.
@@ -43,10 +43,10 @@ Each player has a **crate** (unsecured cash, which fills up with coins) and a **
 A crate that's overflowing starts to shake and glow red. That player is a juicy target!
 
 ### ❤️ Lives
-Everyone starts with **4 lives**. You only lose one when your raid gets blocked. At 0 lives you're **busted** and watch the rest of the game.
+Everyone starts with **2 lives**. You only lose one when your raid gets blocked. At 0 lives you're **busted** and watch the rest of the game.
 
 ### 👑 Bounty
-The richest player wears the crown. Raiding them steals **60%** instead of 50%, so anyone can catch up.
+The richest player wears the crown. Raiding them takes **100%** of their unsecured cash instead of 95%, so anyone can catch up.
 
 ### 🎲 Random events
 | Event | Effect |

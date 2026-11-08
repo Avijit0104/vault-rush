@@ -205,69 +205,140 @@
   }
 
   /* ---------------- Bot brain ----------------
-   * Expected-value model + personality + noise. Uses only public info
-   * (money, lives, past habits, events) — never other players' current picks. */
+   * Thinks like a careful player, using only public info (money, lives, events, everyone's past habits),
+   * never anyone's current pick:
+   *  1. models every player: how often they raid / secure, who they went after last time, who wronged them;
+   *  2. predicts who is likely to raid whom this round (raiders go for big, unguarded piles; bounty on the 👑);
+   *  3. scores each move as the expected change in its OWN money, counting what it risks by leaving cash unsecured,
+   *     including the Final Heist where vaults jam (so it banks its pile the round before);
+   *  4. picks the best move most of the time, with a little unpredictability so it can't be read like a script.
+   * Personalities only nudge the numbers. */
   const PERSONALITIES = {
-    greedy:     { greed: 1.25, aggression: 0.9, caution: 0.8, contrarian: 0.3 },
-    cautious:   { greed: 0.95, aggression: 0.7, caution: 1.4, contrarian: 0.5 },
-    aggressive: { greed: 0.9, aggression: 1.5, caution: 0.75, contrarian: 0.4 },
-    sneaky:     { greed: 1.0, aggression: 1.15, caution: 1.0, contrarian: 1.0 },
+    greedy:     { greed: 1.1, aggression: 0.95, caution: 0.9, noise: 1.0 },
+    cautious:   { greed: 1.0, aggression: 0.85, caution: 1.2, noise: 0.8 },
+    aggressive: { greed: 0.95, aggression: 1.2, caution: 0.9, noise: 1.0 },
+    sneaky:     { greed: 1.0, aggression: 1.05, caution: 1.05, noise: 1.3 },
   };
 
   function botChooseAction(state, botId, rng) {
     const me = state.players.find((p) => p.id === botId);
     const pers = PERSONALITIES[me.personality] || PERSONALITIES.sneaky;
-    const others = state.players.filter((p) => !p.eliminated && p.id !== botId);
-    const n = others.length + 1;
-    const progress = state.round / state.maxRounds;
+    const active = state.players.filter((p) => !p.eliminated);
+    const others = active.filter((p) => p.id !== botId);
+    if (!others.length) return state.boxes.length ? { type: 'CLAIM', targetId: state.boxes[0].id } : { type: 'NONE' };
     const base = baseValue(state.round, state.maxRounds);
-    const options = [];
+    const remaining = state.maxRounds - state.round;               // rounds still to come after this one
+    const secureOff = !!state.secureDisabled;
+    const next = endgameInfo(state.round + 1, state.maxRounds);
+    const vaultsJamNext = !!(next && next.secureDisabled);          // last chance to bank before the Final Heist
+    const fee = state.event === 'FREE_VAULT' ? 0 : CONFIG.VAULT_FEE_PERCENT;
+    const penaltyPct = state.event === 'HIGH_ALERT' ? CONFIG.HIGH_ALERT_PENALTY_PERCENT : CONFIG.FAILED_ATTACK_PENALTY_PERCENT;
+    const lootPct = (p) => (p.id === state.leaderId ? CONFIG.BOUNTY_LOOT_PERCENT : CONFIG.SUCCESSFUL_LOOT_PERCENT);
+    const st = (p) => p.stats || {};
+    const total = (p) => p.unsecured + p.secured;
 
-    // Claims: assume others crowd onto bigger boxes. Blackout → values unknown.
-    const vals = state.boxes.map((b) => (b.value == null ? state.avgBox || base * 7 : b.value));
-    const sq = vals.reduce((s, v) => s + v * v, 0);
-    state.boxes.forEach((b, i) => {
-      const crowd = others.length * 0.6 * ((vals[i] * vals[i]) / sq) * (1.4 - pers.contrarian * 0.6);
-      options.push({ action: { type: 'CLAIM', targetId: b.id }, ev: (vals[i] / (1 + crowd)) * pers.greed });
-    });
+    // --- 1. habits (with a sensible prior until we've seen a few rounds) ---
+    const K = 3;
+    const raidRate = (p) => {
+      const s = st(p);
+      let r = ((s.attacks || 0) + 0.3 * K) / ((s.rounds || 0) + K);
+      if (secureOff) r = Math.min(0.9, r * 1.8 + 0.15);              // nobody can block in the Final Heist: raids are free
+      if (p.lives <= 1 && !secureOff) r *= 0.6;                       // one life left: a blocked raid knocks them out
+      return r;
+    };
+    // Will player x lock their vault this round? Their habit, blended with how exposed they look.
+    const pile = (p) => p.unsecured * lootPct(p);
+    const totalPile = active.reduce((s, p) => s + pile(p), 0) || 1;
+    const looksThreatened = (x) => Math.min(0.95, others.concat(me).filter((r) => r.id !== x.id)
+      .reduce((s, r) => s + raidRate(r) * pile(x) / Math.max(1, totalPile - pile(r)), 0));
+    const pSecure = (x) => {
+      if (secureOff || x.unsecured <= 0) return 0;
+      const s = st(x);
+      const habit = ((s.secures || 0) + 0.15 * K) / ((s.rounds || 0) + K);
+      let want = Math.min(0.95, looksThreatened(x) * 1.6 + (vaultsJamNext ? 0.3 : 0) + (x.id === state.leaderId ? 0.1 : 0));
+      if (x.unsecured < base * 1.5) want *= 0.35;                     // too little to bother paying the fee
+      let p = 0.5 * habit + 0.5 * want;
+      if (s.lastAction === 'SECURE') p *= 0.8;                        // people rarely secure twice in a row
+      return Math.min(0.92, p);
+    };
 
-    // How likely is each rival to raid me? (habit + how rich I look)
-    const raidHabit = (p) => (((p.stats && p.stats.attacks) || 0) + 0.5) / (((p.stats && p.stats.rounds) || 0) + 2);
+    // --- 2. who goes after whom ---
+    // Raiders pick big, likely-unguarded piles; grudges (you raided me last time) and old targets weigh more.
+    const attract = (r, x) => {
+      if (x.id === r.id || x.unsecured <= 0) return 0;
+      let a = pile(x) * (1 - pSecure(x)) + 1;
+      if (st(x).lastTarget === r.id) a *= 1.5;                        // revenge
+      if (st(r).lastTarget === x.id) a *= 1.2;                        // keeps hunting the same victim
+      return a;
+    };
+    const pRaid = (r, x) => {
+      let sum = 0; active.forEach((y) => (sum += attract(r, y)));
+      return sum > 0 ? raidRate(r) * attract(r, x) / sum : 0;
+    };
+    let pSafe = 1;
+    others.forEach((r) => (pSafe *= 1 - pRaid(r, me)));
+    const pRaidedMe = 1 - pSafe;
+    const exposedNow = pRaidedMe * lootPct(me) * me.unsecured * pers.caution;
 
-    // Secure: worth it when holding a juicy unsecured pile and rivals are raiders
-    if (!state.secureDisabled && me.unsecured > 0) {
-      const poorer = others.filter((o) => o.unsecured < me.unsecured).length / Math.max(1, others.length);
-      const habit = others.reduce((s, o) => s + raidHabit(o), 0) / Math.max(1, others.length);
-      let threat = Math.min(0.95, 0.12 + poorer * 0.45 + habit * 0.6 + (me.id === state.leaderId ? 0.15 : 0));
-      const fee = state.event === 'FREE_VAULT' ? 0 : CONFIG.VAULT_FEE_PERCENT;
-      const lootPct = me.id === state.leaderId ? CONFIG.BOUNTY_LOOT_PERCENT : CONFIG.SUCCESSFUL_LOOT_PERCENT;
-      const ev = me.unsecured * lootPct * threat * 1.5 * pers.caution - me.unsecured * fee;
-      options.push({ action: { type: 'SECURE' }, ev });
+    // Money left unsecured stays at risk in later rounds too. Before the Final Heist that risk is almost certain.
+    let laterRisk = 0;
+    if (!secureOff && remaining > 0) {
+      if (vaultsJamNext) {
+        const share = pile(me) / totalPile;
+        laterRisk = me.unsecured * CONFIG.SUCCESSFUL_LOOT_PERCENT * Math.min(0.95, 0.35 + 1.4 * share);
+      } else {
+        laterRisk = me.unsecured * lootPct(me) * Math.min(0.6, pRaidedMe * Math.min(remaining, 3) * 0.35);
+      }
+      laterRisk *= pers.caution;
     }
 
-    // Attacks: EV = P(no secure)*loot - P(secure)*(penalty + life value)
-    const lifeValue = base * ([0, 30, 7, 3.5, 2.5][Math.min(4, me.lives)] || 3);
-    const penaltyPct = state.event === 'HIGH_ALERT' ? CONFIG.HIGH_ALERT_PENALTY_PERCENT : CONFIG.FAILED_ATTACK_PENALTY_PERCENT;
-    const aggroRamp = 0.95 + progress * 0.9;
+    // Lives: a second blocked raid means elimination = ranked below every survivor.
+    const lifeCost = me.lives <= 1 ? total(me) + base * 12 * (remaining + 1) : base * 2 + total(me) * 0.15;
+    const options = [];
+
+    // --- 3a. claim a box ---
+    // Smart claimers spread out until no box is clearly better (each box's share evens out); humans tend to pile
+    // onto the biggest box. So a lone bot often does better on a smaller box nobody else wants.
+    const vals = state.boxes.map((b) => (b.value == null ? state.avgBox || base * 7 : b.value));
+    const claimP = (o) => Math.max(0.1, 1 - raidRate(o) - pSecure(o));
+    const botsClaiming = others.filter((o) => o.isBot !== false).reduce((s, o) => s + claimP(o), 0);
+    const humansClaiming = others.filter((o) => o.isBot === false).reduce((s, o) => s + claimP(o), 0);
+    const crowdOf = (lambda) => vals.map((v) => Math.max(0, v / lambda - 1));
+    let lo = 1e-6, hi = Math.max(...vals, 1);
+    for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2; if (crowdOf(mid).reduce((a, b) => a + b, 0) > botsClaiming) lo = mid; else hi = mid; }
+    // real players are only partly that rational: blend the even spread with "bigger boxes draw more people"
+    const SPREAD = 0.25; // tuned by simulation: strongest vs other styles, hardest to exploit
+    const pull = vals.map((v) => v * v), pullSum = pull.reduce((a, b) => a + b, 0) || 1;
+    const crowd = crowdOf(hi).map((c, i) => SPREAD * c + (1 - SPREAD) * botsClaiming * (pull[i] / pullSum));
+    const biggest = vals.indexOf(Math.max(...vals));
+    vals.forEach((v, i) => (crowd[i] += humansClaiming * (i === biggest ? 0.6 : 0.4 / Math.max(1, vals.length - 1))));
+    state.boxes.forEach((b, i) => {
+      const share = vals[i] / (1 + crowd[i]);
+      options.push({ action: { type: 'CLAIM', targetId: b.id }, ev: share * pers.greed - exposedNow - laterRisk });
+    });
+
+    // --- 3b. secure: no loss, plus whatever blocked raiders pay me; costs the fee ---
+    if (!secureOff && me.unsecured > 0) {
+      let blockGain = 0;
+      others.forEach((r) => (blockGain += pRaid(r, me) * Math.min(r.unsecured, r.unsecured * penaltyPct)));
+      options.push({ action: { type: 'SECURE' }, ev: blockGain - fee * me.unsecured });
+    }
+
+    // --- 3c. raid someone ---
     others.forEach((t) => {
       if (t.unsecured <= 0) return;
-      const h = t.stats || { rounds: 0, secures: 0 };
-      let pSecure = state.secureDisabled ? 0 : (h.secures + 1) / (h.rounds + 4);
-      if (!state.secureDisabled) {
-        const richest = others.every((o) => o.unsecured <= t.unsecured);
-        if (richest) pSecure = Math.min(0.85, pSecure + 0.12);
-        if (h.lastAction === 'SECURE') pSecure *= 0.7; // just secured → maybe less paranoid now
-      }
-      const lootPct = t.id === state.leaderId ? CONFIG.BOUNTY_LOOT_PERCENT : CONFIG.SUCCESSFUL_LOOT_PERCENT;
-      const loot = (t.unsecured * lootPct) / (1 + (n - 2) * 0.18);
-      const cost = me.unsecured * penaltyPct + lifeValue;
-      const ev = ((1 - pSecure) * loot - pSecure * cost) * pers.aggression * aggroRamp;
+      const ps = pSecure(t);
+      let rivals = 0;
+      others.forEach((r) => { if (r.id !== t.id) rivals += pRaid(r, t); });
+      const loot = (lootPct(t) * t.unsecured) / (1 + rivals);
+      const blocked = penaltyPct * me.unsecured + lifeCost;
+      const ev = ((1 - ps) * loot * pers.aggression) - ps * blocked - exposedNow - laterRisk;
       options.push({ action: { type: 'ATTACK', targetId: t.id }, ev });
     });
 
-    // Softmax-ish pick with noise (this is also the "bluff": bots aren't fully predictable)
+    // --- 4. pick: the best move most of the time, but not a script ---
     const best = Math.max(...options.map((o) => o.ev));
-    const temp = Math.max(base * 1.2, Math.abs(best) * 0.3);
+    const temp = Math.max(base * 0.35, Math.abs(best) * 0.08) * pers.noise;
     const weights = options.map((o) => Math.exp((o.ev - best) / temp));
     let r = rng() * weights.reduce((a, b) => a + b, 0);
     for (let i = 0; i < options.length; i++) { r -= weights[i]; if (r <= 0) return options[i].action; }

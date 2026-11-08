@@ -349,9 +349,9 @@
       if (d.spectator) toast('👀 Heist in progress: you are spectating until the next game');
       loading(false);
     });
-    conn.on('state', onState);
-    conn.on('tick', onTimerTick); // Lightweight timer updates (mobile optimization)
-    conn.on('emote', showEmote);
+    conn.on('state', (v) => { S.lastMsg = Date.now(); onState(v); });
+    conn.on('tick', (d) => { S.lastMsg = Date.now(); onTimerTick(d); }); // Lightweight timer updates (mobile optimization)
+    conn.on('emote', (d) => { S.lastMsg = Date.now(); showEmote(d); });
     conn.on('errorMsg', (m) => { loading(false); toast(m); });
     conn.on('kicked', () => { toast('You were removed from the room'); leave(true); });
   }
@@ -397,6 +397,28 @@
     S.conn.on('rejoinFailed', () => { localStorage.removeItem('vr_session'); toast('Your game has ended'); leave(true); });
   }
 
+  /* Watchdog: phones often keep a socket that looks connected but has stopped delivering
+   * (Wi-Fi/4G switch, sleeping radio, proxy hiccup). The server always says something on a known
+   * schedule (a tick every second while choosing, a new state when the intro or reveal ends), so if
+   * it goes quiet for longer than that, reconnect: the rejoin brings a fresh full state. */
+  function quietLimit(v) {
+    const slack = 7000;
+    if (v.phase === 'ACTION') return v.paused ? Infinity : 4000 + (v.timeLeft <= C.LOCKED_IN_FAST_FORWARD ? 1000 : 0);
+    if (v.phase === 'INTRO') return C.INTRO_MS + C.EVENT_INTRO_MS + slack;
+    if (v.phase === 'RESOLVING') return ((v.resolution && v.resolution.duration) || 34000) + 600 + slack;
+    return Infinity; // lobby / results can be quiet for as long as people like
+  }
+  setInterval(() => {
+    const c = S.conn, v = S.view;
+    if (!c || c.mode !== 'online' || !v || !c.restart || document.visibilityState !== 'visible') return;
+    if (!c.socket.connected) return; // socket.io is already reconnecting by itself
+    if (Date.now() - (S.lastMsg || Date.now()) > quietLimit(v)) {
+      S.lastMsg = Date.now();
+      c.restart();
+    }
+  }, 2000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') S.lastMsg = Date.now(); });
+
   function tryRejoin() {
     const sess = JSON.parse(localStorage.getItem('vr_session') || 'null');
     if (sess && S.conn) S.conn.send('rejoin', sess);
@@ -429,7 +451,12 @@
 
   /* ---------- state routing ---------- */
   function onState(v) {
-    if (S.animating) { S.queued = v; return; }
+    if (S.animating) {
+      S.queued = v;
+      // the server has moved past this reveal: finish it quickly so the player can choose in time
+      if (v.phase === 'ACTION' || v.phase === 'GAMEOVER' || v.phase === 'LOBBY') S.hurry = true;
+      return;
+    }
     S.view = v;
     if (v.phase === 'LOBBY') {
       S.resultsShown = false;
@@ -448,6 +475,7 @@
 
   function onTimerTick(data) {
     // Lightweight timer update handler (mobile optimization)
+    if (S.animating && S.queued && S.queued.phase === 'ACTION') { S.queued.timeLeft = data.timeLeft; S.hurry = true; return; }
     if (!S.view || S.view.phase !== 'ACTION' || S.animating) return;
     S.view.timeLeft = data.timeLeft;
 
@@ -725,7 +753,7 @@
       html = `📦 CLAIM ${b && b.value != null ? fmt(b.value) : 'MYSTERY BOX'}<span class="sub">Split equally if others pick it too</span>`;
     } else if (a.type === 'ATTACK') {
       const t = v.players.find((x) => x.id === a.targetId);
-      const pct = t && t.id === v.leaderId ? 60 : 50;
+      const pct = Math.round(100 * (t && t.id === v.leaderId ? C.BOUNTY_LOOT_PERCENT : C.SUCCESSFUL_LOOT_PERCENT));
       txt.classList.add('attack');
       html = `⚔ RAID ${t ? esc(t.name) : ''}<span class="sub">Steal ${pct}% of ${t ? fmt(t.unsecured) : ''}, unless they secure</span>`;
     } else if (a.type === 'SECURE') {
@@ -822,7 +850,7 @@
         <div>Loot stolen<b>${fmt(st.lootGained || 0)}</b></div>
         <div>Box claims<b>${st.claims || 0}</b></div>
       </div>
-      ${v.leaderId === p.id ? '<p class="hint">👑 Current leader: raiding them steals 60%!</p>' : ''}`;
+      ${v.leaderId === p.id ? `<p class="hint">👑 Current leader: raiding them steals ${Math.round(100 * C.BOUNTY_LOOT_PERCENT)}%!</p>` : ''}`;
     $('#sheet-player').classList.add('show');
     SFX.tap();
     SFX.buzz(20);
@@ -880,7 +908,7 @@
   /* ---------- tutorial (first solo game) ---------- */
   const TUT = [
     { sel: '#boxes', text: '📦 <b>Tap a box to CLAIM it.</b> If other players pick the same box, the cash is <b>split</b> between you. The biggest box is often the most crowded!' },
-    { sel: '#side-right', text: '⚔ <b>Tap a rival to RAID them</b> and steal 50% of their unsecured (green) cash. But if they secure that round, you\'re <b>blocked</b>: −1 ❤️ and half your cash goes to them!' },
+    { sel: '#side-right', text: '⚔ <b>Tap a rival to RAID them</b> and steal ' + Math.round(100 * C.SUCCESSFUL_LOOT_PERCENT) + '% of their unsecured (green) cash. But if they secure that round, you\'re <b>blocked</b>: −1 ❤️ and half your cash goes to them!' },
     { sel: '.seat.me', text: '🧺 This is <b>you</b>. Your crate fills with coins as you earn: that cash is <b>unsecured</b> and can be stolen. 🏦 <b>Tap your SAFE to secure it</b> forever (5% fee). Securing also blocks every raid on you that round.' },
     { sel: '#timer', text: '⏱ Everyone chooses <b>secretly</b> at the same time. When the timer hits 0, all moves happen at once. Hit <b>LOCK IN</b> to skip the wait. Good luck, robber!' },
   ];
@@ -959,7 +987,11 @@
     }
   }
 
-  async function runResolution(v) {
+  // A waiting step of the reveal. Skipped once the server has already started the next round,
+  // so a slower phone catches up instead of eating into the player's choosing time.
+  const nap = (ms) => (S.hurry ? Promise.resolve() : FX.wait(ms));
+
+  async function playResolution(v) {
     const res = v.resolution;
     S.animatedRound = res.round;
     S.animating = true;
@@ -973,13 +1005,16 @@
     const slow = !!(v.endgame && v.endgame.secureDisabled);
     if (slow) { banner('FINAL REVEAL', 'Slow motion… 🥁', 'red'); arena.classList.add('slowmo'); }
     else banner("TIME'S UP!", '', 'gold');
-    const D = (id) => S.display[id];
+    const D = (id) => (S.display && S.display[id]) || {}; // coins can land after a hurried reveal ended
     const shown = res.events.filter((e) => e.type !== 'unclaimed');
-    const drum = slow ? 850 : 0;
-    const per = Math.max(700, Math.min(slow ? 2400 : 1400, (res.duration - 2400 - drum * shown.length) / Math.max(1, shown.length))) * sp();
+    const drum = slow ? 700 : 0;
+    // Fit the whole reveal inside the server's duration, counting the fixed beats each event already has
+    // (lunge/shield for blocks, lunge for raids, lid pop for claims), so phones finish with the server.
+    const beats = shown.reduce((s, e) => s + (e.type === 'blocked' ? 580 : e.type === 'loot' ? 300 : e.type === 'claim' ? 250 : 0), 0);
+    const per = Math.max(550, Math.min(slow ? 2000 : 1100, (res.duration - 1900 - beats - drum * shown.length) / Math.max(1, shown.length))) * sp();
     const lines = [];
 
-    await FX.wait(700 * sp());
+    await nap(500 * sp());
     // reveal everyone's choice + raid beams
     res.before.forEach((p) => {
       if (p.eliminated) return;
@@ -992,7 +1027,7 @@
       if (a && a.type === 'ATTACK') FX.beam($('.av', el), $(`[data-pid="${a.targetId}"] .av`), colorOf(p), 'beam-line');
     });
     SFX.whoosh();
-    await FX.wait(1200 * sp());
+    await nap(1000 * sp());
     arena.classList.add('spotlight');
 
     let claimsStarted = false;
@@ -1003,7 +1038,7 @@
         res.events.filter((x) => x.type === 'unclaimed').forEach((x) => boxEl(x.boxId) && boxEl(x.boxId).classList.add('empty'));
       }
       if (e.type === 'unclaimed') continue;
-      if (slow) { light([]); caption('🥁 <b>…</b>'); SFX.drumroll(); await FX.wait(drum * sp()); }
+      if (slow) { light([]); caption('🥁 <b>…</b>'); SFX.drumroll(); await nap(drum * sp()); }
       const line = eventLine(e, res.boxes);
       lines.push(line);
       caption(line);
@@ -1030,10 +1065,10 @@
         light([podEl(e.attackerId), podEl(e.defenderId)]);
         SFX.whoosh();
         FX.lunge(att, def, true);
-        await FX.wait(260 * sp());
+        await nap(260 * sp());
         FX.shield(def); SFX.shield();
         FX.comic(def, 'BLOCKED!', 'blue');
-        await FX.wait(320 * sp());
+        await nap(320 * sp());
         SFX.hit(); FX.cls(att, 'hurt', 500);
         D(e.attackerId).lives -= e.lifeLoss;
         FX.floatText(att, '-1 ❤️', 'minus big');
@@ -1056,7 +1091,7 @@
         light([podEl(e.targetId), ...e.shares.map((s) => podEl(s.playerId))]);
         SFX.whoosh();
         e.shares.forEach((s) => FX.lunge(avEl(s.playerId), tgt));
-        await FX.wait(300 * sp());
+        await nap(300 * sp());
         SFX.hit(); FX.cls(tgt, 'hurt', 500);
         if (e.targetId === v.youId) FX.cls($('#arena'), 'shake', 450);
         FX.burst(lootEl(e.targetId), '#ff3d6e', 12);
@@ -1081,7 +1116,7 @@
         if (e.shares.length > 1 && b) {
           const spn = document.createElement('span'); spn.className = 'split'; spn.textContent = e.shares.length + '-WAY'; b.appendChild(spn);
         }
-        await FX.wait(250 * sp());
+        await nap(250 * sp());
         e.shares.forEach((s) => FX.coins(b, lootEl(s.playerId), Math.ceil(s.amount / 1500) + 2, { onArrive: () => {
           D(s.playerId).unsecured += s.amount; bumpPod(s.playerId);
           FX.floatText(lootEl(s.playerId), '+' + short(s.amount), 'plus');
@@ -1097,7 +1132,7 @@
         FX.comic(avEl(e.playerId), 'BUSTED!', 'red');
         if (e.playerId === v.youId) setTimeout(() => banner('ELIMINATED', 'You are now spectating', 'red'), 400);
       }
-      await FX.wait(per);
+      await nap(per);
     }
 
     arena.classList.remove('spotlight', 'slowmo');
@@ -1118,9 +1153,21 @@
       S.recap = `📊 THIS ROUND: ${parts.join(' · ')}<span class="sub">Tap 📜 to see the full round log</span>`;
     }
 
-    await FX.wait(300);
+    await nap(300);
+  }
+
+  /* Runs the reveal, and ALWAYS hands control back afterwards: an error or a slow phone can no
+   * longer leave the game frozen on the reveal while the server has moved on. */
+  async function runResolution(v) {
+    S.hurry = false;
+    try { await playResolution(v); } catch (err) { console.error('reveal animation failed', err); }
+    S.hurry = false;
     S.display = null;
     S.animating = false;
+    $('#arena').classList.remove('spotlight', 'slowmo');
+    light([]);
+    caption('');
+    FX.clearBeams();
     if (S.view) { S.view.players.forEach(updatePod); if (S.view.phase === 'RESOLVING') renderActionBar(S.view, null, meP()); }
     if (S.queued) { const q = S.queued; S.queued = null; onState(q); }
   }

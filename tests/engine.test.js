@@ -31,9 +31,13 @@ test('vault fee waived on FREE_VAULT event', () => {
   assert.strictEqual(r.a.secured, 10000);
 });
 
-test('bounty: raiding the leader steals 60%', () => {
+test('raid steals 95%; bounty on the leader takes 100%', () => {
+  const n = byId(E.resolveRound([P('a', 10000), P('b'), P('c'), P('d')], boxes, { b: { type: 'ATTACK', targetId: 'a' } }));
+  assert.strictEqual(n.b.unsecured, 9500);
+  assert.strictEqual(n.a.unsecured, 500);
   const r = byId(E.resolveRound([P('a', 10000), P('b'), P('c'), P('d')], boxes, { b: { type: 'ATTACK', targetId: 'a' } }, { leaderId: 'a' }));
-  assert.strictEqual(r.b.unsecured, 6000);
+  assert.strictEqual(r.b.unsecured, 10000);
+  assert.strictEqual(r.a.unsecured, 0);
   assert.strictEqual(E.leaderOf([P('a', 5), P('b', 5)]), null);
   assert.strictEqual(E.leaderOf([P('a', 5), P('b', 6)]), 'b');
 });
@@ -42,9 +46,9 @@ test('HIGH_ALERT: blocked raider loses everything, never below zero even when al
   const r = byId(E.resolveRound([P('a', 10000), P('b', 4000), P('c'), P('d')], boxes, {
     a: { type: 'ATTACK', targetId: 'b' }, b: { type: 'SECURE' }, c: { type: 'ATTACK', targetId: 'a' },
   }, { event: 'HIGH_ALERT', leaderId: 'a' }));
-  assert.strictEqual(r.c.unsecured, 6000);     // 60% bounty of a
-  assert.strictEqual(r.a.unsecured, 0);        // remaining 4000 lost as penalty
-  assert.strictEqual(r.b.secured, 4000 - 200 + 4000);
+  assert.strictEqual(r.c.unsecured, 10000);    // 100% bounty of a
+  assert.strictEqual(r.a.unsecured, 0);        // nothing left over for the penalty
+  assert.strictEqual(r.b.secured, 4000 - 200); // so the defender gets no penalty cash
 });
 
 test('golden and bonus boxes', () => {
@@ -59,10 +63,10 @@ test('successful loot is split among attackers, simultaneous mutual attacks are 
   const r = byId(E.resolveRound([P('a', 10000), P('b', 20000), P('c', 0), P('d')], boxes, {
     a: { type: 'ATTACK', targetId: 'b' }, b: { type: 'ATTACK', targetId: 'a' }, c: { type: 'ATTACK', targetId: 'b' },
   }));
-  // b loses 10000 (split 5000/5000 to a,c), a loses 5000 to b
-  assert.strictEqual(r.a.unsecured, 10000 - 5000 + 5000);
-  assert.strictEqual(r.b.unsecured, 20000 - 10000 + 5000);
-  assert.strictEqual(r.c.unsecured, 5000);
+  // b loses 95% = 19000 (split 9500/9500 to a,c), a loses 95% = 9500 to b
+  assert.strictEqual(r.a.unsecured, 10000 - 9500 + 9500);
+  assert.strictEqual(r.b.unsecured, 20000 - 19000 + 9500);
+  assert.strictEqual(r.c.unsecured, 9500);
 });
 
 test('elimination at 0 lives, attack on eliminated target is ignored', () => {
@@ -76,7 +80,7 @@ test('elimination at 0 lives, attack on eliminated target is ignored', () => {
 test('secure disabled in final round', () => {
   const r = byId(E.resolveRound([P('a', 10000), P('b'), P('c'), P('d')], boxes, { a: { type: 'SECURE' }, b: { type: 'ATTACK', targetId: 'a' } }, { secureDisabled: true }));
   assert.strictEqual(r.a.secured, 0);
-  assert.strictEqual(r.b.unsecured, 5000);
+  assert.strictEqual(r.b.unsecured, 9500);
 });
 
 test('money is conserved apart from box prizes', () => {
@@ -107,6 +111,7 @@ test('full bot game runs to completion', async () => {
   room.later = function (fn) { const t = setTimeout(() => { this.timers.delete(t); fn(); }, 1); this.timers.add(t); return t; };
   room.start(player.id);
   await new Promise((res) => { const iv = setInterval(() => { if (room.phase === 'GAMEOVER') { clearInterval(iv); res(); } }, 20); });
+  await new Promise((res) => setImmediate(res)); // state sends are merged and go out on the next tick
   assert.strictEqual(last.phase, 'GAMEOVER');
   assert.strictEqual(last.ranking.length, 5);
   assert.ok(Array.isArray(last.awards));
@@ -117,4 +122,38 @@ test('full bot game runs to completion', async () => {
   assert.ok(room.get(late.player.id));
   assert.strictEqual(room.players.length, 6);
   room.destroy();
+});
+
+test('bots are never idle, even when every human locks in at once', async () => {
+  const room = new GameRoom({ code: 'IDLE', send: () => {} });
+  const { player } = room.addHuman({ name: 'me' });
+  room.cmdSettings(player.id, { actionTime: 30 }); // a normal 30 s clock (an earlier test shortens the default)
+  for (let i = 0; i < 4; i++) room.cmdAddBot(player.id);
+  room.start(player.id);
+  await new Promise((res) => { const iv = setInterval(() => { if (room.phase === 'ACTION') { clearInterval(iv); res(); } }, 5); });
+  room.setAction(player.id, { type: 'CLAIM', targetId: room.boxes[0].id });
+  room.lockIn(player.id); // timer jumps to 3 s: bots that hadn't picked yet must pick now
+  room.bots = room.players.filter((p) => p.isBot);
+  assert.ok(room.bots.every((b) => room.actions[b.id] && room.actions[b.id].type !== 'NONE'));
+  room.resolve();
+  assert.ok(room.bots.every((b) => room.lastResolution.actions[b.id].type !== 'NONE'));
+  room.destroy();
+});
+
+test('smart bots: bank a big pile before the Final Heist, raid freely during it', () => {
+  const stats = (rounds, attacks, secures) => ({ rounds, attacks, secures, claims: rounds - attacks - secures, lastAction: 'CLAIM', lastTarget: null });
+  const pl = (id, u, s, st) => ({ ...P(id, u, s, 2), personality: 'greedy', stats: st });
+  const view = (round, players, secureDisabled) => ({
+    round, maxRounds: 10, event: null, leaderId: E.leaderOf(players), avgBox: 20000, secureDisabled,
+    boxes: E.makeBoxes(round, 10, players.length, () => 0.3, null), players,
+  });
+  const count = (v, id, type) => { let n = 0; for (let i = 0; i < 300; i++) if (E.botChooseAction(v, id, Math.random).type === type) n++; return n / 300; };
+  // Round 9 (vaults jam next round): the bot holding a fat unsecured pile, with raiders around, secures.
+  const before = [pl('bot', 300000, 20000, stats(8, 1, 1)), pl('a', 20000, 60000, stats(8, 4, 1)), pl('b', 10000, 50000, stats(8, 3, 2)), pl('c', 5000, 40000, stats(8, 3, 1))];
+  assert.ok(count(view(9, before, false), 'bot', 'SECURE') > 0.8);
+  // Final Heist: nobody can block, a rival sits on a fat pile → raid them.
+  const final = [pl('bot', 0, 50000, stats(9, 2, 2)), pl('rich', 400000, 10000, stats(9, 1, 3)), pl('b', 10000, 50000, stats(9, 3, 2)), pl('c', 5000, 40000, stats(9, 3, 1))];
+  const v = view(10, final, true);
+  let raidRich = 0; for (let i = 0; i < 300; i++) { const a = E.botChooseAction(v, 'bot', Math.random); if (a.type === 'ATTACK' && a.targetId === 'rich') raidRich++; }
+  assert.ok(raidRich / 300 > 0.8);
 });

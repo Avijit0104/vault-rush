@@ -34,8 +34,8 @@
     BASE_VALUE: 1000,
     BASE_GROWTH: 100,
 
-    SUCCESSFUL_LOOT_PERCENT: 0.5,       // of target's unsecured, split among all attackers
-    BOUNTY_LOOT_PERCENT: 0.6,           // raiding the current leader pays more (comeback mechanic)
+    SUCCESSFUL_LOOT_PERCENT: 0.95,      // of target's unsecured, split among all attackers
+    BOUNTY_LOOT_PERCENT: 1,             // raiding the current leader takes everything unsecured (comeback mechanic)
     FAILED_ATTACK_PENALTY_PERCENT: 0.5, // of attacker's unsecured, goes to the defender's vault
     FAILED_ATTACK_LIFE_LOSS: 1,
     VAULT_FEE_PERCENT: 0.05,            // securing costs a small bank fee, so it isn't a free move

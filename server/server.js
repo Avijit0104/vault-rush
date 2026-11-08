@@ -11,22 +11,39 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  pingInterval: 25000,      // Increased from 10s for mobile networks (reduces unnecessary pings)
-  pingTimeout: 60000,       // Increased from 20s to handle slow networks better
+  // A silently dead phone connection is noticed after pingInterval + pingTimeout.
+  // 25s + 60s left players frozen for up to 85s; 10s + 20s still tolerates slow mobile data.
+  pingInterval: 10000,
+  pingTimeout: 20000,
   connectTimeout: 45000,    // Allow more time for initial connection
   transports: ['websocket', 'polling'], // Fallback to polling if WebSocket fails
   allowUpgrades: true,      // Allow upgrading from polling to WebSocket
   perMessageDeflate: false, // Disable compression to reduce CPU load on old phones
 });
 
-app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  extensions: ['html'],
+  // The 2 MB music files never change (rename them if replaced): let phones and Cloudflare keep them
+  // instead of re-downloading from the free server every time the track loops.
+  setHeaders: (res, file) => {
+    if (/[\\/](music|icons)[\\/]/.test(file)) res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+  },
+}));
 app.get('/vendor/qrcode.js', (_req, res) => res.sendFile(path.join(__dirname, '..', 'node_modules', 'qrcode-generator', 'dist', 'qrcode.js')));
 app.get('/healthz', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
 
 // Tiny built-in analytics (no third-party tracking): counts since the server started.
 const stats = { startedAt: new Date().toISOString(), roomsCreated: 0, gamesStarted: 0, joins: 0 };
+// Server load, so you can see how hard the free instance is working: CPU % of one core over the last minute + memory.
+let cpuMark = { t: Date.now(), u: process.cpuUsage() }, cpuPercent = 0;
+setInterval(() => {
+  const now = Date.now(), u = process.cpuUsage(cpuMark.u);
+  cpuPercent = +((100 * (u.user + u.system) / 1000) / (now - cpuMark.t)).toFixed(2);
+  cpuMark = { t: now, u: process.cpuUsage() };
+}, 60000).unref();
 app.get('/stats', (_req, res) => res.json({ ...stats, roomsOpen: rooms.size,
-  playersOnline: [...rooms.values()].reduce((n, r) => n + r.humans().filter((p) => p.connected).length + r.spectators.length, 0) }));
+  playersOnline: [...rooms.values()].reduce((n, r) => n + r.humans().filter((p) => p.connected).length + r.spectators.length, 0),
+  cpuPercentLastMinute: cpuPercent, memoryMB: Math.round(process.memoryUsage().rss / 1e6) }));
 
 const rooms = new Map();          // code -> GameRoom
 const socketsByPlayer = new Map(); // playerId -> socket
@@ -58,6 +75,9 @@ function createRoom() {
 }
 
 function attach(socket, room, player, spectator) {
+  // a reconnecting phone: retire its old socket so that socket's late "disconnect" can't mark the player offline
+  const old = socketsByPlayer.get(player.id);
+  if (old && old !== socket) { old.data.roomCode = null; old.data.playerId = null; old.disconnect(true); }
   socket.data.roomCode = room.code;
   socket.data.playerId = player.id;
   socketsByPlayer.set(player.id, socket);
@@ -114,7 +134,11 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     const c = ctx(); if (!c) return;
-    if (socketsByPlayer.get(c.id) === socket) socketsByPlayer.delete(c.id);
+    // Only the player's CURRENT socket counts. An old socket that times out after the phone already
+    // rejoined on a new one used to mark the player offline, so the server stopped sending them
+    // anything and their game froze.
+    if (socketsByPlayer.get(c.id) !== socket) return;
+    socketsByPlayer.delete(c.id);
     c.room.disconnect(c.id);
   });
 });

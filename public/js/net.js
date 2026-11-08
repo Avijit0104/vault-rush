@@ -12,6 +12,8 @@ class OnlineConn {
   emit(type, d) { if (this.handlers[type]) this.handlers[type](d); }
   send(type, d) { this.socket.emit(type, d); }
   close() { this.socket.emit('leave'); this.socket.disconnect(); }
+  // drop a connection that looks open but has stopped delivering, and open a fresh one (the app then rejoins)
+  restart() { this.socket.disconnect(); this.socket.connect(); }
 }
 
 class LocalConn {

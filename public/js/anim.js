@@ -24,8 +24,8 @@ const FX = (() => {
   function coins(fromEl, toEl, count = 6, { onArrive } = {}) {
     if (!fromEl || !toEl) return wait(0);
     const a = center(fromEl), b = center(toEl);
-    const n = Math.max(1, Math.min(10, count));
-    let arrived = false;
+    const n = Math.max(1, Math.min(6, count)); // 6 coins read as "a lot" just as well as 10, at 60% of the work
+    let arrived = false, landed = 0;
     const jobs = [];
     for (let i = 0; i < n; i++) {
       const c = spawn('coin', a.x, a.y, ART.coin());
@@ -41,7 +41,7 @@ const FX = (() => {
       jobs.push(anim.finished.then(() => {
         c.remove();
         if (!arrived) { arrived = true; onArrive && onArrive(); }
-        SFX.coin();
+        if (++landed === 1 || landed === n) SFX.coin(); // first and last coin ring (was one synth sound per coin)
       }));
     }
     return Promise.all(jobs);
@@ -86,6 +86,7 @@ const FX = (() => {
   function burst(el, color = '#ffc94a', n = 14) {
     if (!el) return;
     const p = center(el);
+    n = Math.ceil(n * 0.6); // fewer, same-sized sparks: the burst looks the same at a glance
     for (let i = 0; i < n; i++) {
       const d = spawn('burst', p.x, p.y);
       d.style.background = color;
@@ -137,14 +138,21 @@ const FX = (() => {
       svg.querySelector('defs').insertAdjacentHTML('beforeend',
         `<marker id="${id}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${color}"/></marker>`);
     }
-    const path = document.createElementNS(NS, 'path');
     // stop a little short of the target centre so the arrow head is visible
     const ex = b.x - (b.x - mx) * 0.18, ey = b.y - (b.y - my) * 0.18;
-    path.setAttribute('d', `M${a.x} ${a.y} Q${mx} ${my} ${ex} ${ey}`);
+    const d = `M${a.x} ${a.y} Q${mx} ${my} ${ex} ${ey}`;
+    // The glow is a wide faint stroke under the dashed line. (A CSS drop-shadow filter looked the same but was
+    // re-blurred on every frame of the dash animation, for the whole time the aim line is on screen.)
+    const glow = document.createElementNS(NS, 'path');
+    glow.setAttribute('d', d);
+    glow.setAttribute('class', cls + ' glow');
+    glow.setAttribute('stroke', color);
+    svg.appendChild(glow);
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', d);
     path.setAttribute('class', cls);
     path.setAttribute('stroke', color);
     path.setAttribute('marker-end', `url(#${id})`);
-    path.style.filter = `drop-shadow(0 0 4px ${color})`;
     if (key) path.dataset.key = key;
     svg.appendChild(path);
     return path;

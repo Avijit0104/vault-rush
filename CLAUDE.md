@@ -54,7 +54,7 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
 8. Tapping your selection again deselects it.
 9. Session 2 additions (owner said "do all updates"):
    - **Vault fee 5%** on secure (waived on the Bank Holiday event).
-   - **Bounty**: the unique richest active player (👑) loses 60% instead of 50% when raided (comeback mechanic).
+   - **Bounty**: the unique richest active player (👑) loses 100% instead of 95% when raided (comeback mechanic; was 60/50 until S8).
    - **Random events** (35% chance from round 3, never in endgame): GOLDEN (one box ×2), HIGH_ALERT (blocked raiders lose 100% unsecured), BLACKOUT (values hidden until resolve), BONUS_DROP (+1 box), FREE_VAULT (no fee).
    - Host-selectable timer 15/20/30 s.
    - Spectators: late joiners watch, then get a seat on Play Again (replacing bots if full).
@@ -118,7 +118,50 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
 - **On & On (Cartoon ft. Daniel Levi, NCS) is NOT free for games.** ncs.io/usage-policy: free only for creators' videos; games need NCS's
   commercial licensing form. The owner may apply; only bundle it as the default if they confirm NCS gave permission.
 
+**Session 7 (2026-11-08): "game freezes for everyone after ~5 min" investigation + fixes.**
+- Measured: the Render server is NOT overloaded (each round is tiny JSON work; Render counts WebSocket messages as activity, so
+  it doesn't spin down mid-game). 5-player headless runs: no client memory/DOM leak, no JS errors.
+- [x] **Root bug (server.js):** after a phone reconnected, the server could notice its OLD socket closing later and mark the
+      player offline → no more updates → frozen forever. Now only the player's current socket counts, and `attach()` retires the old one.
+      Test: a scratch socket.io script (rejoin on socket 2, then close socket 1) got 0 updates before the fix and keeps getting them after.
+- [x] Dead-connection detection back to ping 10 s / timeout 20 s (S6 had 25/60 = up to 85 s of frozen screen).
+- [x] Client watchdog (app.js `quietLimit`): if the server is quiet longer than its known schedule (ticks every 1 s in ACTION,
+      intro/reveal lengths otherwise), `OnlineConn.restart()` reconnects and the rejoin resyncs the full state.
+- [x] Reveal animation can't freeze the game: `runResolution` wraps `playResolution` and always hands control back; if the
+      server already started the next ACTION, `S.hurry` skips the remaining waits (`nap`) so slow phones don't lose choosing time.
+- [x] `/music` and `/icons` served with a 30-day immutable cache (music was max-age=0, re-downloaded from the free server).
+- [x] `resolution.before` no longer contains every player's rejoin token (was sent to all phones).
+- SW cache v8.
+
+**Session 8 (2026-11-08): 95% raids, lighter animations, less server work (owner: "game styles must stay as good as now").**
+- [x] **Raids steal 95%** (`SUCCESSFUL_LOOT_PERCENT`); 👑 **bounty takes 100%** (`BOUNTY_LOOT_PERCENT`, my call: it was "+10 points").
+      UI texts read the % from config; rules page + README updated (also "2 lives"). Tests updated. Bot sim (300 games):
+      claim 63% / raid 22% / secure 15% (was 75/15/10); blocked raids per game 1.5 → 3.1.
+- [x] Reveal ~20% shorter: server `duration = (2000 + 1100/event)` (×1.6 final, caps 15 s / 28 s); `playResolution` budgets each
+      event's fixed beats so phones finish with the server.
+- [x] Less work per animation, same look: max 6 coins per transfer (was 10), coin sound on first+last coin only, 60% of burst sparks.
+- [x] Cheaper drawing, same look (checked with side-by-side screenshots old vs new): crate/loot glow filters moved to the inner
+      `<svg>` (wrapper animates, glow drawn once); aim/raid line glow = wide faint stroke (no per-frame drop-shadow);
+      spotlight dims by opacity only; alarm lights use a soft gradient + mask (no live blur); final-round felt pulses a `.rw-glow` layer.
+- [x] Server: state sends in the same moment are merged (`broadcast()` → one `flushBroadcast()` per tick); shared part of the view
+      built once per send (`sharedView`). `/stats` now shows `cpuPercentLastMinute` + `memoryMB` (check the free instance load there).
+- [x] Stats sheet "Raids bounced"/"Loot stolen" work again (fields back in the payload). SW cache v9.
+
+- Server load measured (one 5-player game, ~7 min): 1.0 s CPU before vs 1.3 s after (the faster S7 pings); both ≈0.3% of a core.
+  Phones: main-thread busy time in rounds 5+ halved (68 → 34 ms per 2 s), game 43 s shorter.
+
+**Session 9 (2026-11-08): smarter bots ("they idle and don't secure").**
+- [x] **Idle bug (room.js):** bots picked at a random moment up to ~15 s in; LOCK IN cut the round to 3 s, so late bots never
+      picked (💤 idle). Now `decideIdleBots()` runs on the fast-forward and in `resolve()`; bots pick at 1.5–8.5 s. Test added.
+- [x] **New bot brain (engine.js `botChooseAction`)**, public info only: per-player raid/secure habits (prior 0.3/0.15, K=3), who
+      raids whom (big unguarded piles, bounty, revenge via `stats.lastTarget`), expected loss of unsecured cash now + later
+      (banks before the Final Heist), lives (1 life = avoid blocked raids), claim crowding = 25% "even spread" + 75% "bigger draws more",
+      humans assumed to pile on the biggest box. Low-noise softmax pick. Test: banks a fat pile in round 9, raids freely in the Final Heist.
+- Simulation (scratchpad duel.js, 3000 games, same 95% rules): 1 new bot vs 4 old wins 40.5% (fair 20%); 1 old vs 4 new 16.6%;
+  a "always grab the biggest box" human wins 3% vs new bots (8% vs old). Busted rate ~0.1% (old ~4%). 13 tests pass.
+
 ## Ideas / next steps (not done)
+- Real-phone check of the rendering changes (GPU cost can't be measured from this PC's headless Chrome).
 - Owner declined for now: festival/Diwali theme, landscape/tablet layout.
 - Real-device testing (low-end Android, iPhone Safari) — not possible from this PC.
 - Apply the owner's UI brief when it arrives.
@@ -127,6 +170,12 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
 
 ## Session log
 - **2026-10-31 (S1)**: Built the whole MVP from idea.md. Owner will push to GitHub from another PC/account and deploy on Render; I must not push.
+- **2026-11-08 (S9)**: Owner: bots idle most of the time and don't secure; make them very intelligent. Fixed the idle bug, rewrote the brain (Status → Session 9).
+- **2026-11-08 (S8)**: Owner asked: raids take 95%, trim unnecessary animation, lower server load, keep the style. Done (Status → Session 8).
+  Note for the owner: animations run on the phones, not on Render; the server only waits during the reveal.
+- **2026-11-08 (S7)**: Owner: 5 players, game lagged then froze for everyone after ~5 min (3-4 times). Found the stale-socket
+  "marked offline" bug + 85 s dead-socket detection + reveal could block input; fixed all (see Status → Session 7). Test tooling
+  (puppeteer 5-player runner, stale-socket script) lives only in the session scratchpad.
 - **2026-11-02 (S6)**: Mobile lag and reconnection diagnosis. Fixed missing 'tick' event forwarding in OnlineConn (public/js/net.js); added low-end device detection, disabled heavy 30px CSS blurs (.beam) and 3D floor animation (.floor) during gameplay (style.css); explained Render free-tier proxy/cold-start limits, WakeLock fallback, and mobile tab backgrounding.
 - **2026-10-31 (S5c)**: Default music is now a REAL "Bella ciao" recording: `public/music/bella-ciao-serbian-guards.ogg` (original from
   Wikimedia Commons, by Tinkes, CC BY-SA 4.0, verified on the file page) + `.m4a` (converted in headless Chrome for iPhone). Credit shown in

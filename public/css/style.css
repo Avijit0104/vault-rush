@@ -68,7 +68,7 @@ body.low-end .card, body.fast-anim .card {
   backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   background: rgba(22, 11, 51, 0.88) !important;
 }
-body.low-end .crate, body.fast-anim .crate {
+body.low-end .crate > svg, body.fast-anim .crate > svg {
   filter: drop-shadow(0 4px 6px #000a) !important;
 }
 
@@ -200,9 +200,10 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
 /* alarm lights for endgame */
 .alarm { position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0; transition: opacity .6s; overflow: hidden; }
 .alarm.on { opacity: 1; }
-.alarm::before { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 90px #ff1a4a; animation: alarmPulse 1.2s ease-in-out infinite; }
+.alarm::before { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 90px #ff1a4a; animation: alarmPulse 1.2s ease-in-out infinite; will-change: opacity; }
 .al { position: absolute; top: -110px; width: 240px; height: 240px; border-radius: 50%;
-  background: conic-gradient(from 0deg, #ff2a5577 0 40deg, transparent 40deg 180deg, #ff2a5577 180deg 220deg, transparent 220deg); filter: blur(14px); animation: reticle 1.6s linear infinite; }
+  background: conic-gradient(from 0deg, transparent 0deg, #ff2a5566 12deg, #ff2a5577 20deg 30deg, #ff2a5566 38deg, transparent 52deg 168deg, #ff2a5566 192deg, #ff2a5577 200deg 210deg, #ff2a5566 218deg, transparent 232deg);
+  -webkit-mask: radial-gradient(circle, #000 35%, transparent 70%); mask: radial-gradient(circle, #000 35%, transparent 70%); animation: reticle 1.6s linear infinite; will-change: transform; }
 .al.l { left: -120px; } .al.r { right: -120px; animation-direction: reverse; }
 @keyframes alarmPulse { 50% { opacity: .35; } }
 
@@ -218,8 +219,10 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
 .rw-label { position: absolute; top: 18px; left: 0; right: 0; text-align: center; font-size: 9px; letter-spacing: .18em; color: #ffc94acc; font-weight: 800; }
 .arena.heat .runway { background: repeating-linear-gradient(180deg, transparent 0 38px, #ff9d1c14 38px 40px), radial-gradient(ellipse at 50% 45%, #6b2a1a 0%, #3b1530 60%, #1d0a22 100%); }
 .arena.danger .runway { background: repeating-linear-gradient(180deg, transparent 0 38px, #ff3d6e14 38px 40px), radial-gradient(ellipse at 50% 45%, #7a1430 0%, #45102e 60%, #200718 100%); }
-.arena.final .runway { background: repeating-linear-gradient(180deg, transparent 0 38px, #ff3d6e22 38px 40px), radial-gradient(ellipse at 50% 45%, #a3102e 0%, #5a0a26 55%, #22040f 100%); animation: feltPulse 1.2s ease-in-out infinite; }
-@keyframes feltPulse { 50% { filter: brightness(1.25); } }
+.arena.final .runway { background: repeating-linear-gradient(180deg, transparent 0 38px, #ff3d6e22 38px 40px), radial-gradient(ellipse at 50% 45%, #a3102e 0%, #5a0a26 55%, #22040f 100%); }
+.rw-glow { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 45%, #ff5c8a55, #ff3d6e22 60%, transparent 85%); }
+.arena.final .rw-glow { animation: feltPulse 1.2s ease-in-out infinite; will-change: opacity; }
+@keyframes feltPulse { 50% { opacity: 1; } }
 
 /* ---------- seats (no cards: character on a glowing ledge + loot crate + bank safe) ---------- */
 .side { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-around; min-width: 0; }
@@ -231,7 +234,8 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
   background: radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--pc) 22%, transparent), transparent 70%); }
 
 .stash { width: 44px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.loot { width: 44px; filter: drop-shadow(0 4px 6px #000a); }
+.loot { width: 44px; }
+.loot > svg { display: block; filter: drop-shadow(0 4px 6px #000a); }
 .art-loot { width: 100%; height: auto; overflow: visible; }
 .art-loot .spark { animation: twinkle .8s ease-in-out infinite alternate; }
 .amt { font-weight: 800; font-size: 11px; line-height: 1.1; white-space: nowrap; text-shadow: 0 1px 2px #000; }
@@ -310,7 +314,9 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
 .box:nth-child(2) .chute { animation-delay: .15s; } .box:nth-child(3) .chute { animation-delay: .3s; } .box:nth-child(4) .chute { animation-delay: .45s; } .box:nth-child(5) .chute { animation-delay: .6s; }
 @keyframes chuteAway { 0%, 55% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translate(30px, -90px) rotate(18deg); } }
 .boxes { --cw: 66px; } .boxes.n4 { --cw: 58px; } .boxes.n5 { --cw: 50px; }
-.crate { position: relative; width: var(--cw); filter: drop-shadow(0 8px 10px #000a) drop-shadow(0 0 14px var(--glow)); transition: transform .2s; animation: bob 2.4s ease-in-out infinite; }
+.crate { position: relative; width: var(--cw); transition: transform .2s; animation: bob 2.4s ease-in-out infinite; will-change: transform; }
+/* shadow + glow live on the artwork and the bob on its wrapper: the glow is drawn once and then just moved, not re-drawn every frame */
+.crate > svg { display: block; filter: drop-shadow(0 8px 10px #000a) drop-shadow(0 0 14px var(--glow)); }
 .box:nth-child(2) .crate { animation-delay: -.8s; } .box:nth-child(3) .crate { animation-delay: -1.6s; } .box:nth-child(4) .crate { animation-delay: -.4s; }
 .art-box { width: 100%; height: auto; overflow: visible; }
 .art-box .lid { transform-box: fill-box; transform-origin: 0% 100%; transition: transform .45s cubic-bezier(.3, 1.6, .5, 1); }
@@ -318,7 +324,7 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
 @keyframes bob { 50% { transform: translateY(-5px); } }
 .box.HIGH { --glow: #ffc94a99; } .box.MEDIUM { --glow: #8fd0ff77; } .box.LOW { --glow: #f0a07055; } .box.MYSTERY { --glow: #9b5cffaa; }
 .box.golden { --glow: #fff1a8; }
-.box.golden .crate { animation: bob 2.4s ease-in-out infinite, goldGlow 1s ease-in-out infinite alternate; }
+.box.golden .crate > svg { animation: goldGlow 1s ease-in-out infinite alternate; }
 @keyframes goldGlow { to { filter: drop-shadow(0 8px 10px #000a) drop-shadow(0 0 26px #ffe066) brightness(1.15); } }
 .box .ribbon { position: absolute; top: -4px; right: -10px; z-index: 3; font-family: var(--head); font-size: 11px; background: linear-gradient(90deg, #ff9d1c, #ffe07a); color: #3b1d00; padding: 1px 6px; border-radius: 8px; transform: rotate(10deg); box-shadow: 0 2px 6px #0008; }
 .box .val { margin-top: 3px; font-family: var(--head); font-size: 13px; padding: 1px 8px; border-radius: 10px; background: #000c; border: 1px solid var(--line); white-space: nowrap; }
@@ -326,13 +332,14 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
 .box.MYSTERY .val { color: var(--purple); letter-spacing: .2em; }
 .box .pick { position: absolute; top: -14px; font-size: 9px; font-weight: 800; letter-spacing: .08em; padding: 2px 7px; border-radius: 8px; background: var(--cyan); color: #002a33; display: none; white-space: nowrap; z-index: 4; }
 .box.sel .pick { display: block; animation: pop .25s; }
-.box.sel .crate { transform: scale(1.14); filter: drop-shadow(0 0 3px var(--cyan)) drop-shadow(0 0 16px var(--cyan)); animation: none; }
+.box.sel .crate { transform: scale(1.14); animation: none; }
+.box.sel .crate > svg { filter: drop-shadow(0 0 3px var(--cyan)) drop-shadow(0 0 16px var(--cyan)); }
 .box.empty { opacity: .3; transition: opacity .4s; }
 .box .split { position: absolute; top: 12px; z-index: 5; font-family: var(--head); font-size: 11px; color: #fff; background: var(--purple); padding: 1px 6px; border-radius: 8px; animation: pop .3s; white-space: nowrap; }
 
 /* spotlight during resolution */
-.arena.spotlight .seat, .arena.spotlight .box { opacity: .3; filter: brightness(.55) saturate(.6); }
-.arena.spotlight .seat.lit, .arena.spotlight .box.lit { opacity: 1; filter: none; z-index: 5; }
+.arena.spotlight .seat, .arena.spotlight .box { opacity: .2; }
+.arena.spotlight .seat.lit, .arena.spotlight .box.lit { opacity: 1; z-index: 5; }
 .arena.spotlight .seat.dead.lit { filter: grayscale(1); }
 .caption { position: absolute; left: 50%; top: 50%; margin: 0; transform: translate(-50%, -50%) scale(.9); z-index: 8; width: max-content; max-width: 94%;
   padding: 8px 14px; border-radius: 14px; background: #0b0618ee; border: 1px solid var(--line); box-shadow: 0 10px 30px #000c;
@@ -370,6 +377,7 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
 #fx svg.beams { position: absolute; inset: 0; width: 100%; height: 100%; }
 .beam-line { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 10 8; animation: dash .6s linear infinite; }
 .aim-line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 6 7; opacity: .8; animation: dash .8s linear infinite; }
+.beam-line.glow, .aim-line.glow { stroke-width: 9; stroke-dasharray: none; opacity: .22; animation: none; marker-end: none; }
 @keyframes dash { to { stroke-dashoffset: -18; } }
 .coin { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; filter: drop-shadow(0 0 6px #ffc94a); }
 .coin svg { width: 100%; height: 100%; }
@@ -507,8 +515,10 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px #3ef3ff22; }
 .comic.purple { --cb: #b58cff; }
 
 /* ---------- danger meter + reactions ---------- */
-.seat.tempting .loot { animation: wobble 1.1s ease-in-out infinite; filter: drop-shadow(0 4px 6px #000a) drop-shadow(0 0 8px #ff3d6e); }
-.seat.overflow .loot { animation-duration: .6s; filter: drop-shadow(0 4px 6px #000a) drop-shadow(0 0 14px #ff3d6e); }
+.seat.tempting .loot { animation: wobble 1.1s ease-in-out infinite; will-change: transform; }
+.seat.tempting .loot > svg { filter: drop-shadow(0 4px 6px #000a) drop-shadow(0 0 8px #ff3d6e); }
+.seat.overflow .loot { animation-duration: .6s; }
+.seat.overflow .loot > svg { filter: drop-shadow(0 4px 6px #000a) drop-shadow(0 0 14px #ff3d6e); }
 .seat.tempting .amt.u { color: #ff8fab; }
 @keyframes wobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-5deg); } 75% { transform: rotate(5deg); } }
 .seat.tempting:not(.dead) .av::before { content: '💧'; position: absolute; right: -3px; top: 2px; font-size: 13px; z-index: 3; animation: sweat 1.4s ease-in infinite; }

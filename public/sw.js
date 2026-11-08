@@ -1,5 +1,5 @@
 /* Vault Rush service worker — network-first, falls back to cache so solo mode works offline. */
-const CACHE = 'vault-rush-v7';
+const CACHE = 'vault-rush-v9';
 const ASSETS = [
   './', 'index.html', 'css/style.css', 'icon.svg', 'manifest.webmanifest',
   'shared/config.js', 'shared/engine.js', 'shared/room.js',
