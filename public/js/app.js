@@ -411,7 +411,7 @@
   setInterval(() => {
     const c = S.conn, v = S.view;
     if (!c || c.mode !== 'online' || !v || !c.restart || document.visibilityState !== 'visible') return;
-    if (!c.socket.connected) return; // socket.io is already reconnecting by itself
+    if (!c.socket.connected) return; // already reconnecting by itself
     if (Date.now() - (S.lastMsg || Date.now()) > quietLimit(v)) {
       S.lastMsg = Date.now();
       c.restart();

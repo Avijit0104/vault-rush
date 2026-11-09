@@ -24,7 +24,8 @@ public/                 static client (served by Express; also works for solo of
   js/audio.js           SETTINGS (localStorage: sfx/music/vibrate/fastAnim) + SFX + procedural Music (3 intensity levels)
   js/art.js             SVG robber characters c0..c11, robot bots r0..r5, prize crates/safe/chest/mystery, parachute, ₹ coin,
                         lootCrate(level 0-4) that fills with coins, bank safe, seat colours
-  js/net.js             OnlineConn (Socket.IO) and LocalConn (in-browser room), same interface
+  js/wsio.js            tiny stand-in for the Socket.IO client (window.io) over a plain WebSocket at /ws (S10)
+  js/net.js             OnlineConn (via wsio.js) and LocalConn (in-browser room), same interface
   js/anim.js            FX: coin arcs, shields, lunges, floating text, beams/aim lines, tap labels, confetti
   js/app.js             screens, rendering, input (tap + long-press), tutorial, emotes, resolution animation, log, results
   shared/               UMD modules used by BOTH server (require) and browser (<script>)
@@ -33,13 +34,17 @@ public/                 static client (served by Express; also works for solo of
     room.js             GameRoom state machine: LOBBY → INTRO → ACTION → RESOLVING → … → GAMEOVER; spectators, emotes, pause
   icons/                PNG icons (192/512/apple-touch) rendered from icon.svg
   sw.js, manifest.webmanifest, icon.svg   PWA (network-first, cache fallback; bump CACHE version when assets change)
-server/server.js        Express static + Socket.IO; rooms by 4-letter code; rejoin by token; /healthz, /stats, /vendor/qrcode.js
+server/hub.js           online rooms: create/join/rejoin/commands, stats; shared by both servers (no network code)
+server/server.js        Node: Express static + `ws` at /ws; /healthz, /stats, /vendor/qrcode.js
+worker.mjs              Cloudflare Workers version (Durable Object `Game` runs server/hub.js); wrangler.jsonc, public/_headers
+tests/server.test.js    end-to-end online game over WebSockets (Node, or any running server via TEST_URL)
 tests/engine.test.js    node:test, 11 tests
 render.yaml             Render blueprint (free web service, health check /healthz)
 ```
 Key design: the server is authoritative. The client only sends `{type: CLAIM|ATTACK|SECURE|NONE, targetId}` and renders state. Solo mode runs the same `GameRoom` inside the browser.
 
 ### Socket events (client → server)
+Wire format (S10, both ways): `{t: type, d: data}` JSON over the WebSocket; plus `ping` → `pong` keep-alive every 20 s.
 `create {name,avatar}`, `join {code,name,avatar}` (a mid-game join becomes a spectator), `rejoin {code,token}`, `leave`, `settings {rounds, actionTime}`, `addBot`, `removeBot id`, `kick id`, `start`, `action {type,targetId}`, `lockIn`, `playAgain`, `emote '😂'`. Solo only: `pause bool` (tutorial).
 Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per-player view; others' choices hidden, only `hasActed`; Blackout hides box values), `emote {playerId, emoji}`, `errorMsg`, `kicked`, `rejoinFailed`.
 
@@ -66,9 +71,14 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
 - **GitHub repo:** `Avijit0104/vault-rush`. The owner uploads files through the GitHub website in an incognito window (no credentials on this PC).
   Never upload `node_modules`. Render auto-redeploys on every commit to `main`.
 - README.md is **player-facing only** (play link + how to play). Keep dev/deploy notes here in CLAUDE.md, not in the README.
+- **Cloudflare Workers (free plan, no card), added 2026-11-09 (S10)** for the owner's "Friend's Night" game hub (repo `Avijit0104/friends_night`, live at https://friends-night.avibose000.workers.dev), after Chor Police Dakat Babu and RSJM moved there. Worker name `vault-rush`, address `https://vault-rush.avibose000.workers.dev` once the owner imports this repo in the Cloudflare dashboard (Workers & Pages → Create → Import a repository; build command empty, deploy command `npx wrangler deploy`). Then every commit to `main` deploys there as well as to Render.
+  - `worker.mjs`: `public/` is served as static files (`public/_headers` keeps music/icons cached 30 days). `/healthz` and `/vendor/qrcode.js` are answered by the Worker (the QR library is bundled as text, see `rules` in wrangler.jsonc). `/music/*` goes through the Worker first so it can answer byte-range requests (206), which iPhone Safari needs for audio. `/ws` and `/stats` go to one Durable Object (`Game`, named `vault-rush`, location hint `apac`) that runs every room in memory with `server/hub.js`, exactly like Node.
+  - **Rooms are not saved to storage** (unlike CPDB/RSJM there): a GameRoom runs on live timers, so a deploy or restart ends running games, as on Render. No hibernation: the object stays awake while anyone is connected. Free-plan budget: 13,000 GB-s/day of object time (~28 h/day shared by all the owner's games; this object alone awake 24 h would use ~11,000), so on Cloudflare `createHub({ idleCloseMs: 15 min })` closes rooms that sit in LOBBY or GAMEOVER with no command for 15 minutes (players see "The room was closed after 15 minutes without activity" and go home). Node keeps the old behaviour (no idle close).
+  - Socket.IO was replaced by plain WebSockets (`ws` on Node, `public/js/wsio.js` in the browser) because it can't run on Cloudflare. `wsio.js` sets `window.io = null` when offline/opened from file, so the app still falls back to solo-only exactly as before.
 
 ## How to run / test
-- `npm install` then `npm start` → http://localhost:3000. `npm test` runs 11 engine tests.
+- `npm install` then `npm start` → http://localhost:3000. `npm test` runs the engine tests + `tests/server.test.js` (15 tests, S10).
+- Cloudflare version locally: `npx wrangler@4 dev`, then `TEST_URL=http://127.0.0.1:8787 node --test tests/server.test.js` (PowerShell: `$env:TEST_URL='http://127.0.0.1:8787'; node --test tests/server.test.js`).
 - Browser testing: the Claude-in-Chrome extension could NOT reach localhost. Use puppeteer-core (install it in the session scratchpad) with the local Chrome at `C:/Program Files/Google/Chrome/Application/chrome.exe`. To skip the splash/tutorial in tests: `sessionStorage.vr_splash='1'`, `localStorage.vr_tut='1'`.
 - After changing `server/server.js`, restart the server; static files are served live.
 
@@ -160,15 +170,22 @@ Server → client: `joined {code,playerId,token,spectator}`, `state <view>` (per
 - Simulation (scratchpad duel.js, 3000 games, same 95% rules): 1 new bot vs 4 old wins 40.5% (fair 20%); 1 old vs 4 new 16.6%;
   a "always grab the biggest box" human wins 3% vs new bots (8% vs old). Busted rate ~0.1% (old ~4%). 13 tests pass.
 
+**Session 10 (2026-11-09): runs on Cloudflare Workers too (see Live deployment).**
+- [x] `server/hub.js` (room logic out of server.js), `server/server.js` on `ws`, `public/js/wsio.js` (io stand-in), `worker.mjs` + `wrangler.jsonc` + `public/_headers`. `room.js` / `engine.js` / `app.js` game logic unchanged (app.js: one comment). SW cache v10 (adds js/wsio.js, skips /ws, /healthz, /stats).
+- [x] `tests/server.test.js`: create/join/errors, settings, bots, start, intro → action with ticks, actions + lock-in, emote, reveal with a move for every seat, no rejoin tokens in views, mid-game spectator, drop + rejoin, round 2, bad rejoin refused. 15/15 pass on Node; the server tests pass on `wrangler dev`.
+- [x] Browser check on `wrangler dev`: online room, QR code in the lobby, start with 3 bots, claim + lock in, reveal, round 2. Music byte ranges answer 206.
+- Not done yet: deploying (owner imports the repo in Cloudflare), real-phone check, iPhone audio on Cloudflare.
+
 ## Ideas / next steps (not done)
 - Real-phone check of the rendering changes (GPU cost can't be measured from this PC's headless Chrome).
 - Owner declined for now: festival/Diwali theme, landscape/tablet layout.
 - Real-device testing (low-end Android, iPhone Safari) — not possible from this PC.
 - Apply the owner's UI brief when it arrives.
 - Possible: power-ups / decoy boxes (idea.md §35), persistent stats, ranked mode.
-- The room is kept in memory; a Render restart ends running games (acceptable for free tier).
+- The room is kept in memory; a Render restart or a Cloudflare deploy ends running games (acceptable for free tier).
 
 ## Session log
+- **2026-11-09 (S10)**: Owner is gathering their games on a free Cloudflare hub ("Friend's Night"); asked to move Vault Rush there after CPDB and RSJM. Replaced Socket.IO with plain WebSockets, added the Cloudflare Worker version; Render keeps working. Committed locally only (hard rule: the owner pushes).
 - **2026-10-31 (S1)**: Built the whole MVP from idea.md. Owner will push to GitHub from another PC/account and deploy on Render; I must not push.
 - **2026-11-08 (S9)**: Owner: bots idle most of the time and don't secure; make them very intelligent. Fixed the idle bug, rewrote the brain (Status → Session 9).
 - **2026-11-08 (S8)**: Owner asked: raids take 95%, trim unnecessary animation, lower server load, keep the style. Done (Status → Session 8).

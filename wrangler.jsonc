@@ -1,0 +1,21 @@
+// Cloudflare Workers config (free plan). See CLAUDE.md → "Live deployment".
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vault-rush",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-01",
+  // setImmediate etc. for the shared room code
+  "compatibility_flags": ["nodejs_compat"],
+  // public/ is served as static files (public/_headers sets caching); only /ws, /stats, /healthz and
+  // /vendor/qrcode.js reach worker.mjs
+  // music goes through worker.mjs first so it can answer byte-range requests (iPhone Safari needs them)
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/music/*"] },
+  // the QR-code library is a browser script: bundle it as text and serve it at /vendor/qrcode.js
+  "rules": [{ "type": "Text", "globs": ["**/qrcode-generator/dist/qrcode.js"], "fallthrough": false }],
+  "durable_objects": {
+    "bindings": [{ "name": "GAME", "class_name": "Game" }]
+  },
+  // Free plan: Durable Objects must use SQLite storage (nothing is stored; rooms live in memory)
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Game"] }],
+  "observability": { "enabled": true }
+}

@@ -1,10 +1,11 @@
 /* Vault Rush — connections. Same interface for online (Socket.IO) and solo (in-browser room). */
 
+// window.io comes from js/wsio.js (a small WebSocket stand-in for the Socket.IO client).
 class OnlineConn {
   constructor() {
     this.handlers = {};
     this.mode = 'online';
-    this.socket = window.io({ transports: ['websocket', 'polling'], reconnection: true });
+    this.socket = window.io();
     ['state', 'tick', 'joined', 'emote', 'errorMsg', 'kicked', 'rejoinFailed', 'connect', 'disconnect', 'connect_error']
       .forEach((ev) => this.socket.on(ev, (d) => this.emit(ev, d)));
   }

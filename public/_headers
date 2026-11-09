@@ -1,0 +1,6 @@
+# Cloudflare static-file caching (ignored by the Node server).
+# The 2 MB music files and icons never change (rename them if replaced): phones keep them for 30 days.
+/music/*
+  Cache-Control: public, max-age=2592000, immutable
+/icons/*
+  Cache-Control: public, max-age=2592000, immutable
